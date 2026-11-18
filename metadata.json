@@ -1,0 +1,6 @@
+{
+  "name": "ScholarBand — IELTS & Academic English Studio",
+  "description": "Comprehensive IELTS & English learning platform with 4-skill adaptive placement, CEFR A1-C1 vocabulary & grammar, SM-2 spaced repetition flashcards, AI Writing & Speaking rubric grading, dynamic graded news reader, video shadowing studio, and peer review.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

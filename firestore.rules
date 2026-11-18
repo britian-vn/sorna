@@ -1,0 +1,421 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Pillar 4.1: Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Phase 3: Reusable Hardened Global Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isVerifiedUser() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isBoundedStringArray(arr, maxLen) {
+      return arr is list && arr.size() <= maxLen && (arr.size() == 0 || (arr[0] is string && arr[0].size() <= 128));
+    }
+
+    function isBoundedNumberArray(arr, maxLen) {
+      return arr is list && arr.size() <= maxLen && (arr.size() == 0 || (arr[0] is number && arr[0] >= 0 && arr[0] <= 6));
+    }
+
+    // Validation Blueprint 1: UserProfile
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll([
+        'uid',
+        'displayName',
+        'currentBandLevel',
+        'targetBand',
+        'diagnosticCompleted',
+        'listeningScore',
+        'readingScore',
+        'writingScore',
+        'speakingScore',
+        'completedMilestones',
+        'completedLessons',
+        'earnedBadges',
+        'studyStreak',
+        'lastStudyDate',
+        'reminderEnabled',
+        'reminderTime',
+        'reminderDays',
+        'browserPushEnabled',
+        'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'uid',
+        'displayName',
+        'currentBandLevel',
+        'targetBand',
+        'diagnosticCompleted',
+        'diagnosticMode',
+        'diagnosticStep',
+        'diagnosticSavedState',
+        'listeningScore',
+        'readingScore',
+        'writingScore',
+        'speakingScore',
+        'completedMilestones',
+        'completedLessons',
+        'earnedBadges',
+        'studyStreak',
+        'lastStudyDate',
+        'reminderEnabled',
+        'reminderTime',
+        'reminderDays',
+        'browserPushEnabled',
+        'offlinePackSyncedAt',
+        'updatedAt'
+      ]) &&
+      data.uid is string && data.uid == userId && data.uid == request.auth.uid && isValidId(data.uid) &&
+      data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80 &&
+      data.currentBandLevel is string && data.currentBandLevel.size() <= 20 &&
+      (data.currentBandLevel == '0-3.5' || data.currentBandLevel == '3.5-5.0' || data.currentBandLevel == '5.0-6.0' || data.currentBandLevel == '6.0-7.0+') &&
+      data.targetBand is number && data.targetBand >= 3.0 && data.targetBand <= 9.0 &&
+      data.diagnosticCompleted is bool &&
+      (!('diagnosticMode' in data) || (data.diagnosticMode is string && data.diagnosticMode.size() <= 20 && (data.diagnosticMode == 'quick' || data.diagnosticMode == 'detailed' || data.diagnosticMode == 'manual'))) &&
+      (!('diagnosticStep' in data) || (data.diagnosticStep is number && data.diagnosticStep >= 0 && data.diagnosticStep <= 20)) &&
+      (!('diagnosticSavedState' in data) || (data.diagnosticSavedState is string && data.diagnosticSavedState.size() <= 4000)) &&
+      data.listeningScore is number && data.listeningScore >= 0 && data.listeningScore <= 9.0 &&
+      data.readingScore is number && data.readingScore >= 0 && data.readingScore <= 9.0 &&
+      data.writingScore is number && data.writingScore >= 0 && data.writingScore <= 9.0 &&
+      data.speakingScore is number && data.speakingScore >= 0 && data.speakingScore <= 9.0 &&
+      isBoundedStringArray(data.completedMilestones, 100) &&
+      isBoundedStringArray(data.completedLessons, 200) &&
+      isBoundedStringArray(data.earnedBadges, 50) &&
+      data.studyStreak is number && data.studyStreak >= 0 && data.studyStreak <= 10000 &&
+      data.lastStudyDate is string && data.lastStudyDate.size() <= 20 &&
+      data.reminderEnabled is bool &&
+      data.reminderTime is string && data.reminderTime.size() <= 10 &&
+      isBoundedNumberArray(data.reminderDays, 7) &&
+      data.browserPushEnabled is bool &&
+      (!('offlinePackSyncedAt' in data) || (data.offlinePackSyncedAt is string && data.offlinePackSyncedAt.size() <= 40)) &&
+      data.updatedAt == request.time;
+    }
+
+    // Validation Blueprint 2: SrsCard
+    function isValidSrsCard(data, userId, cardId) {
+      return data.keys().hasAll([
+        'id',
+        'uid',
+        'word',
+        'phonetic',
+        'partOfSpeech',
+        'definition',
+        'exampleSentence',
+        'topic',
+        'cefrLevel',
+        'source',
+        'masteryLevel',
+        'intervalDays',
+        'easeFactor',
+        'repetitions',
+        'nextReviewAt',
+        'lastReviewedAt',
+        'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'id',
+        'uid',
+        'word',
+        'phonetic',
+        'partOfSpeech',
+        'definition',
+        'exampleSentence',
+        'topic',
+        'cefrLevel',
+        'source',
+        'masteryLevel',
+        'intervalDays',
+        'easeFactor',
+        'repetitions',
+        'nextReviewAt',
+        'lastReviewedAt',
+        'updatedAt'
+      ]) &&
+      data.id is string && data.id == cardId && isValidId(data.id) &&
+      data.uid is string && data.uid == userId && data.uid == request.auth.uid && isValidId(data.uid) &&
+      data.word is string && data.word.size() >= 1 && data.word.size() <= 120 &&
+      data.phonetic is string && data.phonetic.size() <= 120 &&
+      data.partOfSpeech is string && data.partOfSpeech.size() <= 40 &&
+      data.definition is string && data.definition.size() >= 1 && data.definition.size() <= 600 &&
+      data.exampleSentence is string && data.exampleSentence.size() <= 600 &&
+      data.topic is string && data.topic.size() <= 60 &&
+      data.cefrLevel is string && data.cefrLevel.size() <= 10 &&
+      (data.cefrLevel == 'A1' || data.cefrLevel == 'A2' || data.cefrLevel == 'B1' || data.cefrLevel == 'B2' || data.cefrLevel == 'C1') &&
+      data.source is string && data.source.size() <= 30 &&
+      (data.source == 'vocab-hub' || data.source == 'news-reader' || data.source == 'custom') &&
+      data.masteryLevel is string && data.masteryLevel.size() <= 20 &&
+      (data.masteryLevel == 'New' || data.masteryLevel == 'Learning' || data.masteryLevel == 'Reviewing' || data.masteryLevel == 'Mastered') &&
+      data.intervalDays is number && data.intervalDays >= 0 && data.intervalDays <= 3650 &&
+      data.easeFactor is number && data.easeFactor >= 1.3 && data.easeFactor <= 5.0 &&
+      data.repetitions is number && data.repetitions >= 0 && data.repetitions <= 1000 &&
+      data.nextReviewAt is string && data.nextReviewAt.size() >= 1 && data.nextReviewAt.size() <= 40 &&
+      data.lastReviewedAt is string && data.lastReviewedAt.size() >= 1 && data.lastReviewedAt.size() <= 40 &&
+      data.updatedAt == request.time;
+    }
+
+    // Validation Blueprint 3: PracticeAttempt
+    function isValidPracticeAttempt(data, userId, attemptId) {
+      return data.keys().hasAll([
+        'id',
+        'uid',
+        'skill',
+        'testTitle',
+        'bandScore',
+        'userResponse',
+        'aiFeedbackSummary',
+        'durationSeconds',
+        'createdAt'
+      ]) &&
+      data.keys().hasOnly([
+        'id',
+        'uid',
+        'skill',
+        'testTitle',
+        'bandScore',
+        'userResponse',
+        'aiFeedbackSummary',
+        'durationSeconds',
+        'createdAt'
+      ]) &&
+      data.id is string && data.id == attemptId && isValidId(data.id) &&
+      data.uid is string && data.uid == userId && data.uid == request.auth.uid && isValidId(data.uid) &&
+      data.skill is string && data.skill.size() <= 20 &&
+      (data.skill == 'listening' || data.skill == 'reading' || data.skill == 'writing' || data.skill == 'speaking') &&
+      data.testTitle is string && data.testTitle.size() >= 1 && data.testTitle.size() <= 200 &&
+      data.bandScore is number && data.bandScore >= 0.0 && data.bandScore <= 9.0 &&
+      data.userResponse is string && data.userResponse.size() <= 8000 &&
+      data.aiFeedbackSummary is string && data.aiFeedbackSummary.size() <= 8000 &&
+      data.durationSeconds is number && data.durationSeconds >= 0 && data.durationSeconds <= 86400 &&
+      data.createdAt == request.time;
+    }
+
+    // Validation Blueprint 4: PeerSubmission (Create)
+    function isValidPeerSubmissionCreate(data, submissionId) {
+      return data.keys().hasAll([
+        'id',
+        'authorUid',
+        'anonymousHandle',
+        'authorBand',
+        'skill',
+        'promptTitle',
+        'content',
+        'wordCount',
+        'visibility',
+        'reviewCount',
+        'averageBand',
+        'latestReviewComment',
+        'latestReviewerHandle',
+        'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'id',
+        'authorUid',
+        'anonymousHandle',
+        'authorBand',
+        'skill',
+        'promptTitle',
+        'content',
+        'wordCount',
+        'visibility',
+        'reviewCount',
+        'averageBand',
+        'latestReviewComment',
+        'latestReviewerHandle',
+        'updatedAt'
+      ]) &&
+      data.id is string && data.id == submissionId && isValidId(data.id) &&
+      data.authorUid is string && data.authorUid == request.auth.uid && isValidId(data.authorUid) &&
+      data.anonymousHandle is string && data.anonymousHandle.size() >= 1 && data.anonymousHandle.size() <= 60 &&
+      data.authorBand is string && data.authorBand.size() <= 20 &&
+      (data.authorBand == '0-3.5' || data.authorBand == '3.5-5.0' || data.authorBand == '5.0-6.0' || data.authorBand == '6.0-7.0+') &&
+      data.skill is string && data.skill.size() <= 20 && (data.skill == 'writing' || data.skill == 'speaking') &&
+      data.promptTitle is string && data.promptTitle.size() >= 1 && data.promptTitle.size() <= 240 &&
+      data.content is string && data.content.size() >= 10 && data.content.size() <= 6000 &&
+      data.wordCount is number && data.wordCount >= 1 && data.wordCount <= 2000 &&
+      data.visibility is string && data.visibility.size() <= 16 && data.visibility == 'public' &&
+      data.reviewCount is number && data.reviewCount >= 0 && data.reviewCount <= 1000 &&
+      data.averageBand is number && data.averageBand >= 0.0 && data.averageBand <= 9.0 &&
+      data.latestReviewComment is string && data.latestReviewComment.size() <= 1500 &&
+      data.latestReviewerHandle is string && data.latestReviewerHandle.size() <= 60 &&
+      data.updatedAt == request.time;
+    }
+
+    // Validation Blueprint 4b: PeerSubmission (Update shape check)
+    function isValidPeerSubmissionShape(data, submissionId) {
+      return data.keys().hasAll([
+        'id',
+        'authorUid',
+        'anonymousHandle',
+        'authorBand',
+        'skill',
+        'promptTitle',
+        'content',
+        'wordCount',
+        'visibility',
+        'reviewCount',
+        'averageBand',
+        'latestReviewComment',
+        'latestReviewerHandle',
+        'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'id',
+        'authorUid',
+        'anonymousHandle',
+        'authorBand',
+        'skill',
+        'promptTitle',
+        'content',
+        'wordCount',
+        'visibility',
+        'reviewCount',
+        'averageBand',
+        'latestReviewComment',
+        'latestReviewerHandle',
+        'updatedAt'
+      ]) &&
+      data.id is string && data.id == submissionId && isValidId(data.id) &&
+      data.authorUid is string && isValidId(data.authorUid) &&
+      data.anonymousHandle is string && data.anonymousHandle.size() >= 1 && data.anonymousHandle.size() <= 60 &&
+      data.authorBand is string && data.authorBand.size() <= 20 &&
+      (data.authorBand == '0-3.5' || data.authorBand == '3.5-5.0' || data.authorBand == '5.0-6.0' || data.authorBand == '6.0-7.0+') &&
+      data.skill is string && data.skill.size() <= 20 && (data.skill == 'writing' || data.skill == 'speaking') &&
+      data.promptTitle is string && data.promptTitle.size() >= 1 && data.promptTitle.size() <= 240 &&
+      data.content is string && data.content.size() >= 10 && data.content.size() <= 6000 &&
+      data.wordCount is number && data.wordCount >= 1 && data.wordCount <= 2000 &&
+      data.visibility is string && data.visibility.size() <= 16 && data.visibility == 'public' &&
+      data.reviewCount is number && data.reviewCount >= 0 && data.reviewCount <= 1000 &&
+      data.averageBand is number && data.averageBand >= 0.0 && data.averageBand <= 9.0 &&
+      data.latestReviewComment is string && data.latestReviewComment.size() <= 1500 &&
+      data.latestReviewerHandle is string && data.latestReviewerHandle.size() <= 60 &&
+      data.updatedAt == request.time;
+    }
+
+    // Collection 1: /users/{userId}
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if isOwner(userId) && existing().uid == request.auth.uid;
+      allow create: if isOwner(userId) && isValidId(userId) && isValidUserProfile(incoming(), userId);
+      allow update: if isOwner(userId) && isValidId(userId) && isValidUserProfile(incoming(), userId) &&
+        incoming().uid == existing().uid &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'displayName',
+          'currentBandLevel',
+          'targetBand',
+          'diagnosticCompleted',
+          'diagnosticMode',
+          'diagnosticStep',
+          'diagnosticSavedState',
+          'listeningScore',
+          'readingScore',
+          'writingScore',
+          'speakingScore',
+          'completedMilestones',
+          'completedLessons',
+          'earnedBadges',
+          'studyStreak',
+          'lastStudyDate',
+          'reminderEnabled',
+          'reminderTime',
+          'reminderDays',
+          'browserPushEnabled',
+          'offlinePackSyncedAt',
+          'updatedAt'
+        ]);
+      allow delete: if false;
+
+      // Subcollection 1A: /users/{userId}/srsCards/{cardId}
+      match /srsCards/{cardId} {
+        allow get: if isOwner(userId) && isValidId(userId) && isValidId(cardId) &&
+          exists(/databases/$(database)/documents/users/$(userId));
+        allow list: if isOwner(userId) && existing().uid == request.auth.uid;
+        allow create: if isOwner(userId) && isValidId(userId) && isValidId(cardId) &&
+          isValidSrsCard(incoming(), userId, cardId) &&
+          exists(/databases/$(database)/documents/users/$(userId));
+        allow update: if isOwner(userId) && isValidId(userId) && isValidId(cardId) &&
+          isValidSrsCard(incoming(), userId, cardId) &&
+          incoming().id == existing().id &&
+          incoming().uid == existing().uid &&
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'word',
+            'phonetic',
+            'partOfSpeech',
+            'definition',
+            'exampleSentence',
+            'topic',
+            'cefrLevel',
+            'masteryLevel',
+            'intervalDays',
+            'easeFactor',
+            'repetitions',
+            'nextReviewAt',
+            'lastReviewedAt',
+            'updatedAt'
+          ]) &&
+          exists(/databases/$(database)/documents/users/$(userId));
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidId(cardId) &&
+          exists(/databases/$(database)/documents/users/$(userId));
+      }
+
+      // Subcollection 1B: /users/{userId}/attempts/{attemptId}
+      match /attempts/{attemptId} {
+        allow get: if isOwner(userId) && isValidId(userId) && isValidId(attemptId) &&
+          exists(/databases/$(database)/documents/users/$(userId));
+        allow list: if isOwner(userId) && existing().uid == request.auth.uid;
+        allow create: if isOwner(userId) && isValidId(userId) && isValidId(attemptId) &&
+          isValidPracticeAttempt(incoming(), userId, attemptId) &&
+          exists(/databases/$(database)/documents/users/$(userId));
+        allow update: if false;
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidId(attemptId) &&
+          exists(/databases/$(database)/documents/users/$(userId));
+      }
+    }
+
+    // Collection 2: /peerSubmissions/{submissionId}
+    match /peerSubmissions/{submissionId} {
+      allow get: if isVerifiedUser() && isValidId(submissionId) && existing().visibility == 'public';
+      allow list: if isVerifiedUser() && existing().visibility == 'public';
+      allow create: if isVerifiedUser() && isValidId(submissionId) &&
+        isValidPeerSubmissionCreate(incoming(), submissionId) &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid));
+      allow update: if isVerifiedUser() && isValidId(submissionId) &&
+        isValidPeerSubmissionShape(incoming(), submissionId) &&
+        incoming().id == existing().id &&
+        incoming().authorUid == existing().authorUid &&
+        incoming().promptTitle == existing().promptTitle &&
+        incoming().content == existing().content &&
+        incoming().skill == existing().skill &&
+        incoming().visibility == existing().visibility &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'reviewCount',
+          'averageBand',
+          'latestReviewComment',
+          'latestReviewerHandle',
+          'updatedAt'
+        ]);
+      allow delete: if isVerifiedUser() && isValidId(submissionId) && existing().authorUid == request.auth.uid;
+    }
+  }
+}
