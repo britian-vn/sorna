@@ -1587,24 +1587,43 @@ export const NewsShadowingReminders: React.FC<NewsShadowingRemindersProps> = ({
 
             {videoPracticeMode === 'cloze' ? (
               <div className="space-y-4">
-                {/* Clickable Word Bank */}
+                {/* Clickable Word Bank + First-Letter Hint (VoiceTube / Language Reactor style) */}
                 <div className="p-3.5 rounded-xl bg-[#FAF8F5] dark:bg-[#0B0F17] border border-[#E6E2DA] dark:border-[#263042] space-y-2">
-                  <div className="flex items-center justify-between text-xs">
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                     <span className="font-semibold text-[#18181B] dark:text-[#F3F0E6]">
                       Ngân Hàng Từ Vựng Gợi Ý (Chạm vào từ để điền nhanh vào ô đang chọn):
                     </span>
-                    <button
-                      onClick={() => {
-                        setClozeInputs({});
-                        setClozeChecked((prev) => ({
-                          ...prev,
-                          [activeShadowLesson.id]: false,
-                        }));
-                      }}
-                      className="inline-flex items-center gap-1 text-[11px] text-zinc-500 hover:text-[#991B1B] cursor-pointer"
-                    >
-                      <RotateCcw className="w-3 h-3" /> Làm lại
-                    </button>
+                    <div className="flex items-center gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const nextInputs: Record<string, string> = { ...clozeInputs };
+                          activeShadowLesson.sentences.forEach((s) => {
+                            if (!(nextInputs[s.id] || '').trim() && s.clozeWord) {
+                              nextInputs[s.id] = s.clozeWord.slice(0, 1);
+                            }
+                          });
+                          setClozeInputs(nextInputs);
+                        }}
+                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 dark:text-amber-400 hover:underline cursor-pointer"
+                        title="Điền chữ cái đầu tiên cho các ô còn trống"
+                      >
+                        💡 Gợi ý chữ đầu
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setClozeInputs({});
+                          setClozeChecked((prev) => ({
+                            ...prev,
+                            [activeShadowLesson.id]: false,
+                          }));
+                        }}
+                        className="inline-flex items-center gap-1 text-[11px] text-zinc-500 hover:text-[#991B1B] cursor-pointer"
+                      >
+                        <RotateCcw className="w-3 h-3" /> Làm lại
+                      </button>
+                    </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {wordBankList.map((w, i) => {

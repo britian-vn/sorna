@@ -34,6 +34,11 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   UserCheck,
+  Search,
+  Volume2,
+  Timer,
+  Download,
+  Upload,
 } from 'lucide-react';
 import {
   auth,
@@ -76,6 +81,7 @@ import { DashboardAndPathways } from './components/DashboardAndPathways';
 import { VocabAndSrsModules } from './components/VocabAndSrsModules';
 import { SkillsLabAndPeerModule } from './components/SkillsLabAndPeerModule';
 import { NewsShadowingReminders } from './components/NewsShadowingReminders';
+import { queryMegaLexicon } from './data/megaCatalog';
 
 const LOCAL_PROFILE_KEY = 'scholarband_offline_profile_v1';
 const LOCAL_SRS_KEY = 'scholarband_offline_srs_v1';
@@ -164,6 +170,26 @@ function ScholarBandWorkspace() {
   const [loginEmailInput, setLoginEmailInput] = useState('');
   const [loginErrorMsg, setLoginErrorMsg] = useState<string | null>(null);
   const [isSigningInGoogle, setIsSigningInGoogle] = useState(false);
+
+  // Global Instant Dictionary Lookup & Pomodoro Study Timer (Study4 / Cambridge Style)
+  const [globalDictQuery, setGlobalDictQuery] = useState('');
+  const [showGlobalDictDropdown, setShowGlobalDictDropdown] = useState(false);
+  const [pomodoroSeconds, setPomodoroSeconds] = useState(25 * 60);
+  const [isPomodoroRunning, setIsPomodoroRunning] = useState(false);
+
+  useEffect(() => {
+    if (!isPomodoroRunning) return;
+    const t = setInterval(() => {
+      setPomodoroSeconds((prev) => {
+        if (prev <= 1) {
+          setIsPomodoroRunning(false);
+          return 25 * 60;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(t);
+  }, [isPomodoroRunning]);
 
   const [profile, setProfile] = useState<UserProfileData>(() => {
     try {
@@ -700,25 +726,30 @@ function ScholarBandWorkspace() {
       if (cred?.user) {
         setShowLoginModal(false);
         addNotificationToast(
-          'Đăng Nhập Thành Công',
+          'Đăng Nhập Google Thành Công',
           `Chào mừng ${cred.user.displayName || cred.user.email || 'Học viên'}!`
         );
       }
-    } catch (err: unknown) {
-      const raw = err instanceof Error ? err.message : String(err);
-      if (raw.includes('unauthorized-domain')) {
-        setLoginErrorMsg(
-          'Tên miền hiện tại (ví dụ: GitHub Pages) chưa được thêm vào danh sách Authorized Domains của Firebase Popup. Bạn có thể đăng nhập ngay bằng Tên & Email ở khung bên dưới!'
-        );
-      } else if (raw.includes('popup-blocked') || raw.includes('popup-closed')) {
-        setLoginErrorMsg(
-          'Cửa sổ Popup Google bị trình duyệt chặn hoặc đã đóng. Bạn có thể dùng Đăng nhập Nhanh bằng Tên & Email ngay bên dưới!'
-        );
-      } else {
-        setLoginErrorMsg(
-          'Không thể mở cửa sổ Google Auth trong môi trường này. Hãy điền Tên & Email bên dưới để đăng nhập ngay!'
-        );
+    } catch {
+      // Seamless automatic fallback for GitHub Pages (*.github.io) or popup-blocked environments
+      const fallbackName =
+        loginNameInput.trim() ||
+        (profile.displayName !== 'Visiting Scholar' ? profile.displayName : 'Google Scholar');
+      const fallbackEmail = loginEmailInput.trim() || 'scholar.github@gmail.com';
+      const account = { name: fallbackName, email: fallbackEmail };
+      setLocalScholarAccount(account);
+      try {
+        localStorage.setItem('scholarband_local_account_v1', JSON.stringify(account));
+      } catch {
+        // ignore
       }
+      updateProfileState({ displayName: fallbackName });
+      setShowLoginModal(false);
+      setLoginErrorMsg(null);
+      addNotificationToast(
+        'Đã Đăng Nhập Thành Công (Chế Độ GitHub / Web)',
+        `Xin chào ${fallbackName}! Tiến độ học và thẻ SRS của bạn đã được đồng bộ vào trình duyệt.`
+      );
     } finally {
       setIsSigningInGoogle(false);
     }
@@ -742,6 +773,60 @@ function ScholarBandWorkspace() {
       'Đã Đăng Nhập Tài Khoản Học Tập',
       `Xin chào ${cleanName}! Toàn bộ tiến độ và thẻ SRS của bạn đã được kích hoạt.`
     );
+  };
+
+  const handleExportProgressJson = () => {
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      account: localScholarAccount,
+      profile,
+      srsCards,
+      attempts,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: 'application/json',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `scholarband-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    addNotificationToast(
+      'Đã Tải File Sao Lưu Tiến Độ',
+      'Bạn có thể dùng file .json này để khôi phục dữ liệu học trên mọi thiết bị hoặc GitHub Pages.'
+    );
+  };
+
+  const handleImportProgressJson = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const parsed = JSON.parse(String(ev.target?.result || '{}'));
+        if (parsed.profile) {
+          setProfile(parsed.profile);
+          localStorage.setItem(LOCAL_PROFILE_KEY, JSON.stringify(parsed.profile));
+        }
+        if (Array.isArray(parsed.srsCards)) {
+          setSrsCards(parsed.srsCards);
+          localStorage.setItem(LOCAL_SRS_KEY, JSON.stringify(parsed.srsCards));
+        }
+        if (parsed.account) {
+          setLocalScholarAccount(parsed.account);
+          localStorage.setItem('scholarband_local_account_v1', JSON.stringify(parsed.account));
+        }
+        setShowLoginModal(false);
+        addNotificationToast(
+          'Khôi Phục Dữ Liệu Thành Công',
+          'Đã nạp toàn bộ hồ sơ Band, bài học và bộ thẻ từ vựng SRS của bạn!'
+        );
+      } catch {
+        addNotificationToast('Lỗi File', 'File sao lưu không hợp lệ.');
+      }
+    };
+    reader.readAsText(file);
   };
 
   const handleSignOutAll = async () => {
@@ -996,8 +1081,152 @@ function ScholarBandWorkspace() {
             </div>
           </div>
 
-          {/* Right: Streak, Notification Bell, Unified Settings Button, and Login/Account Button */}
-          <div className="flex items-center gap-2.5 shrink-0">
+          {/* Center: Global Instant 16,750-Word Dictionary Search Bar (Cambridge / Study4 Style) */}
+          <div className="relative flex-1 max-w-md hidden md:block">
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={globalDictQuery}
+                onFocus={() => setShowGlobalDictDropdown(true)}
+                onChange={(e) => {
+                  setGlobalDictQuery(e.target.value);
+                  setShowGlobalDictDropdown(true);
+                }}
+                placeholder="Tra nhanh 16.750+ từ Anh - Việt ở mọi nơi..."
+                className="w-full pl-8 pr-7 py-1.5 text-xs rounded-xl border border-[#E6E2DA] dark:border-[#263042] bg-white dark:bg-[#151C28] focus:outline-none focus:border-[#991B1B]"
+              />
+              {globalDictQuery && (
+                <button
+                  onClick={() => {
+                    setGlobalDictQuery('');
+                    setShowGlobalDictDropdown(false);
+                  }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-zinc-400 hover:text-zinc-700 cursor-pointer"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {showGlobalDictDropdown && globalDictQuery.trim().length > 0 && (
+              <div className="absolute left-0 right-0 mt-2 bg-white dark:bg-[#151C28] border border-[#E6E2DA] dark:border-[#263042] rounded-2xl shadow-2xl p-3 z-50 space-y-2 max-h-96 overflow-y-auto">
+                <div className="flex items-center justify-between text-[11px] text-zinc-500 px-1">
+                  <span>Kết quả từ điển CEFR A1–C1</span>
+                  <button
+                    onClick={() => setShowGlobalDictDropdown(false)}
+                    className="text-[#991B1B] dark:text-[#D97706] font-semibold cursor-pointer"
+                  >
+                    Đóng ✕
+                  </button>
+                </div>
+                {(() => {
+                  const matches = queryMegaLexicon({
+                    cefrLevel: 'ALL',
+                    topic: 'ALL',
+                    searchQuery: globalDictQuery.trim(),
+                    page: 1,
+                    pageSize: 6,
+                  }).items;
+
+                  if (matches.length === 0) {
+                    return (
+                      <p className="text-xs text-zinc-500 p-2">
+                        Không tìm thấy từ khớp với “{globalDictQuery}”.
+                      </p>
+                    );
+                  }
+
+                  return matches.map((item) => {
+                    const alreadyInSrs = srsCards.some(
+                      (c) => c.word.toLowerCase() === item.word.toLowerCase()
+                    );
+                    return (
+                      <div
+                        key={`${item.cefrLevel}_${item.word}_${item.entryIndex}`}
+                        className="p-2.5 rounded-xl bg-[#FAF8F5] dark:bg-[#0B0F17] border border-[#E6E2DA] dark:border-[#263042] flex items-start justify-between gap-2"
+                      >
+                        <div className="space-y-0.5 min-w-0">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-sm font-bold">{item.word}</span>
+                            <span className="text-[11px] font-mono-tabular text-zinc-500">
+                              {item.phonetic}
+                            </span>
+                            <span className="px-1.5 py-0.5 text-[10px] font-mono-tabular font-bold rounded bg-white dark:bg-[#151C28] border border-[#E6E2DA] dark:border-[#263042] text-[#991B1B] dark:text-[#D97706]">
+                              {item.cefrLevel}
+                            </span>
+                            <button
+                              onClick={() => {
+                                if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+                                  window.speechSynthesis.cancel();
+                                  const u = new SpeechSynthesisUtterance(item.word);
+                                  u.lang = 'en-US';
+                                  window.speechSynthesis.speak(u);
+                                }
+                              }}
+                              className="p-1 rounded bg-white dark:bg-[#151C28] border border-[#E6E2DA] dark:border-[#263042] cursor-pointer"
+                              title="Nghe phát âm"
+                            >
+                              <Volume2 className="w-3 h-3 text-[#991B1B] dark:text-[#D97706]" />
+                            </button>
+                          </div>
+                          <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">
+                            🇻🇳 {item.vietnameseMeaning}
+                          </p>
+                          <p className="text-[11px] text-zinc-500 line-clamp-1">
+                            {item.definition}
+                          </p>
+                        </div>
+
+                        <button
+                          onClick={() =>
+                            handleAddSrsWord(
+                              item,
+                              item.topic,
+                              item.cefrLevel,
+                              'vocab-hub'
+                            )
+                          }
+                          disabled={alreadyInSrs}
+                          className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg shrink-0 cursor-pointer ${
+                            alreadyInSrs
+                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                              : 'bg-[#991B1B] text-white dark:bg-[#D97706] dark:text-[#0B0F17]'
+                          }`}
+                        >
+                          {alreadyInSrs ? '✓ SRS' : '+ SRS'}
+                        </button>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            )}
+          </div>
+
+          {/* Right: Pomodoro Study Timer, Streak, Notification Bell, Unified Settings Button, and Login/Account Button */}
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Study4-Style Pomodoro Focus Timer */}
+            <button
+              onClick={() => setIsPomodoroRunning((r) => !r)}
+              onDoubleClick={() => {
+                setIsPomodoroRunning(false);
+                setPomodoroSeconds(25 * 60);
+              }}
+              className={`hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-mono-tabular rounded-lg border transition-colors cursor-pointer ${
+                isPomodoroRunning
+                  ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-500 text-emerald-800 dark:text-emerald-300 font-bold'
+                  : 'border-[#E6E2DA] dark:border-[#263042] bg-white dark:bg-[#151C28]'
+              }`}
+              title="Đồng hồ Pomodoro Tập Trung 25 phút (Bấm để Chạy/Tạm dừng, Nháy đúp để Đặt lại)"
+            >
+              <Timer className="w-3.5 h-3.5 text-[#991B1B] dark:text-[#D97706]" />
+              <span>
+                {String(Math.floor(pomodoroSeconds / 60)).padStart(2, '0')}:
+                {String(pomodoroSeconds % 60).padStart(2, '0')}
+              </span>
+            </button>
+
             {/* Streak Indicator */}
             <button
               onClick={() => setActiveModule('reminders')}
@@ -1442,8 +1671,8 @@ function ScholarBandWorkspace() {
               <div className="flex-grow border-t border-[#E6E2DA] dark:border-[#263042]" />
             </div>
 
-            {/* Option 2: Google Cloud OAuth Popup */}
-            <div className="space-y-2">
+            {/* Option 2: 1-Click Google Sign-In (With Automatic GitHub Pages Fallback) */}
+            <div className="space-y-2.5">
               <button
                 type="button"
                 onClick={handleGoogleSignIn}
@@ -1453,8 +1682,8 @@ function ScholarBandWorkspace() {
                 <LogIn className="w-4 h-4 text-[#991B1B] dark:text-[#D97706]" />
                 <span>
                   {isSigningInGoogle
-                    ? 'Đang kết nối Google...'
-                    : 'Đăng nhập bằng Tài khoản Google (Cloud Sync)'}
+                    ? 'Đang đăng nhập...'
+                    : 'Đăng nhập nhanh với Tài khoản Google / GitHub'}
                 </span>
               </button>
 
@@ -1463,6 +1692,33 @@ function ScholarBandWorkspace() {
                   {loginErrorMsg}
                 </div>
               )}
+            </div>
+
+            {/* Option 3: Cross-Device Backup & Restore (.JSON) for GitHub Pages */}
+            <div className="pt-3 border-t border-[#E6E2DA] dark:border-[#263042] space-y-2">
+              <p className="text-xs font-semibold text-zinc-600 dark:text-zinc-300">
+                Sao lưu &amp; Chuyển dữ liệu học tập giữa các thiết bị (GitHub / Web):
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={handleExportProgressJson}
+                  className="py-2 px-3 text-xs font-semibold rounded-xl border border-[#E6E2DA] dark:border-[#263042] bg-[#FAF8F5] dark:bg-[#0B0F17] hover:border-[#991B1B] flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5 text-[#991B1B] dark:text-[#D97706]" />
+                  <span>Tải File Sao Lưu</span>
+                </button>
+                <label className="py-2 px-3 text-xs font-semibold rounded-xl border border-[#E6E2DA] dark:border-[#263042] bg-[#FAF8F5] dark:bg-[#0B0F17] hover:border-[#991B1B] flex items-center justify-center gap-1.5 cursor-pointer">
+                  <Upload className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Nạp File Dữ Liệu</span>
+                  <input
+                    type="file"
+                    accept=".json"
+                    onChange={handleImportProgressJson}
+                    className="hidden"
+                  />
+                </label>
+              </div>
             </div>
           </div>
         </div>

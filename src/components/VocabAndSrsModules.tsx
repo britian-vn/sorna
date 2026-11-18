@@ -87,6 +87,7 @@ export const VocabAndSrsModules: React.FC<VocabAndSrsProps> = ({
   const [quizDisplayMode, setQuizDisplayMode] = useState<'single' | 'list'>('single');
   const [focusedQuestionIdx, setFocusedQuestionIdx] = useState<number>(0);
   const [quizResultFilter, setQuizResultFilter] = useState<'all' | 'wrong'>('all');
+  const [flaggedQuestions, setFlaggedQuestions] = useState<Record<string, boolean>>({});
 
   // Module 2 State: Vocabulary & Grammar Hub
   const [selectedCefr, setSelectedCefr] = useState<'ALL' | CefrLevel>('ALL');
@@ -104,10 +105,14 @@ export const VocabAndSrsModules: React.FC<VocabAndSrsProps> = ({
   const [aiGeneratedWords, setAiGeneratedWords] = useState<MegaVocabEntry[]>([]);
   const [isGeneratingAiVocab, setIsGeneratingAiVocab] = useState(false);
 
-  // Module 3 State: SRS Flashcard Arena
+  // Module 3 State: SRS Flashcard Arena (Quizlet-style 3 modes: Flip, Multiple Choice, Dictation)
   const [masteryFilter, setMasteryFilter] = useState<'DUE' | 'ALL' | MasteryLevel>('DUE');
   const [currentCardIdx, setCurrentCardIdx] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
+  const [srsPracticeMode, setSrsPracticeMode] = useState<'flip' | 'quiz' | 'dictation'>('flip');
+  const [srsMcqSelected, setSrsMcqSelected] = useState<string | null>(null);
+  const [srsDictationInput, setSrsDictationInput] = useState('');
+  const [srsDictationChecked, setSrsDictationChecked] = useState(false);
 
   // Custom Card Form State
   const [customWord, setCustomWord] = useState('');
@@ -255,29 +260,55 @@ export const VocabAndSrsModules: React.FC<VocabAndSrsProps> = ({
       });
     };
 
+    const flaggedCount = twentyQuestions.filter((q) => flaggedQuestions[q.id]).length;
+
     const renderSingleQuizQuestionCard = (q: (typeof twentyQuestions)[0], idx: number) => {
       const chosen = quizAnswers[q.id];
+      const isFlagged = Boolean(flaggedQuestions[q.id]);
       return (
         <div
           key={q.id}
-          className="p-5 rounded-xl bg-[#FAF8F5] dark:bg-[#0B0F17] border border-[#E6E2DA] dark:border-[#263042] space-y-4"
+          className={`p-5 rounded-xl bg-[#FAF8F5] dark:bg-[#0B0F17] border space-y-4 ${
+            isFlagged
+              ? 'border-amber-500 dark:border-amber-500'
+              : 'border-[#E6E2DA] dark:border-[#263042]'
+          }`}
         >
           <div className="space-y-1.5">
-            <div className="flex items-center justify-between text-xs font-mono-tabular text-zinc-500">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-mono-tabular text-zinc-500">
               <span>
                 Câu {idx + 1} / 20 · Đề #{currentVariantSeed + 1} · CEFR {currentLesson.cefrLevel}
               </span>
-              {isCurrentQuizSubmitted && (
-                <span
-                  className={
-                    chosen === q.correctIndex
-                      ? 'text-emerald-700 dark:text-emerald-400 font-bold'
-                      : 'text-red-600 dark:text-red-400 font-bold'
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setFlaggedQuestions((prev) => ({
+                      ...prev,
+                      [q.id]: !prev[q.id],
+                    }))
                   }
+                  className={`px-2.5 py-0.5 rounded-md text-[11px] font-sans font-semibold border transition-colors cursor-pointer ${
+                    isFlagged
+                      ? 'bg-amber-100 text-amber-900 border-amber-400 dark:bg-amber-950/70 dark:text-amber-300 dark:border-amber-700'
+                      : 'bg-white dark:bg-[#151C28] border-[#E6E2DA] dark:border-[#263042] text-zinc-600 dark:text-zinc-400 hover:border-amber-400'
+                  }`}
+                  title="Đánh dấu câu hỏi để kiểm tra lại trước khi nộp bài (Study4 CBT style)"
                 >
-                  {chosen === q.correctIndex ? '✓ CHÍNH XÁC' : '✗ SAI / CẦN CHỮA LỖI'}
-                </span>
-              )}
+                  {isFlagged ? '🚩 Đã đặt cờ xem lại' : '🏳️ Đặt cờ xem lại'}
+                </button>
+                {isCurrentQuizSubmitted && (
+                  <span
+                    className={
+                      chosen === q.correctIndex
+                        ? 'text-emerald-700 dark:text-emerald-400 font-bold'
+                        : 'text-red-600 dark:text-red-400 font-bold'
+                    }
+                  >
+                    {chosen === q.correctIndex ? '✓ CHÍNH XÁC' : '✗ SAI / CẦN CHỮA LỖI'}
+                  </span>
+                )}
+              </div>
             </div>
             <p className="text-base font-semibold text-[#18181B] dark:text-[#F3F0E6] leading-snug">
               {idx + 1}. {q.question}
@@ -1084,7 +1115,8 @@ export const VocabAndSrsModules: React.FC<VocabAndSrsProps> = ({
                   <div className="p-3.5 rounded-xl bg-[#FAF8F5] dark:bg-[#0B0F17] border border-[#E6E2DA] dark:border-[#263042] space-y-2.5">
                     <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                       <span className="font-semibold">
-                        Bảng Điều Hướng 20 Câu Hỏi (Đã làm: {answeredCount}/20):
+                        Bảng Điều Hướng 20 Câu Hỏi (Đã làm: {answeredCount}/20
+                        {flaggedCount > 0 ? ` · 🚩 Đặt cờ: ${flaggedCount}` : ''}):
                       </span>
                       {isCurrentQuizSubmitted && (
                         <div className="flex items-center gap-2">
@@ -1109,6 +1141,7 @@ export const VocabAndSrsModules: React.FC<VocabAndSrsProps> = ({
                       {twentyQuestions.map((q, idx) => {
                         const isAnswered = quizAnswers[q.id] !== undefined;
                         const isCorrect = quizAnswers[q.id] === q.correctIndex;
+                        const isFlagged = Boolean(flaggedQuestions[q.id]);
                         const isFocused =
                           quizDisplayMode === 'single' && safeQuestionIdx === idx;
 
@@ -1123,6 +1156,11 @@ export const VocabAndSrsModules: React.FC<VocabAndSrsProps> = ({
                             'bg-[#991B1B]/15 dark:bg-[#D97706]/25 border-[#991B1B] dark:border-[#D97706] text-[#991B1B] dark:text-[#D97706] font-bold';
                         }
 
+                        if (isFlagged && !isCurrentQuizSubmitted) {
+                          pillCls =
+                            'bg-amber-100 dark:bg-amber-950/70 border-amber-500 text-amber-900 dark:text-amber-300 font-bold';
+                        }
+
                         if (isFocused) {
                           pillCls += ' ring-2 ring-[#18181B] dark:ring-white';
                         }
@@ -1134,10 +1172,13 @@ export const VocabAndSrsModules: React.FC<VocabAndSrsProps> = ({
                               setFocusedQuestionIdx(idx);
                               setQuizDisplayMode('single');
                             }}
-                            className={`h-8 rounded-md text-xs font-mono-tabular border transition-all cursor-pointer flex items-center justify-center ${pillCls}`}
-                            title={`Câu ${idx + 1}`}
+                            className={`relative h-8 rounded-md text-xs font-mono-tabular border transition-all cursor-pointer flex items-center justify-center ${pillCls}`}
+                            title={`Câu ${idx + 1}${isFlagged ? ' (Đã đặt cờ xem lại)' : ''}`}
                           >
                             {idx + 1}
+                            {isFlagged && (
+                              <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-amber-500" />
+                            )}
                           </button>
                         );
                       })}
@@ -1280,8 +1321,43 @@ export const VocabAndSrsModules: React.FC<VocabAndSrsProps> = ({
     if (!activeCard) return;
     onReviewSrsCard(activeCard, rating);
     setIsFlipped(false);
+    setSrsMcqSelected(null);
+    setSrsDictationInput('');
+    setSrsDictationChecked(false);
     setCurrentCardIdx((prev) => prev + 1);
   };
+
+  // Build 4 deterministic multiple-choice options for Quizlet-style SRS Quiz Mode
+  const srsQuizOptions = (() => {
+    if (!activeCard) return [];
+    const fallbackPool = [
+      'mitigate',
+      'ubiquitous',
+      'paradigm',
+      'exacerbate',
+      'resilient',
+      'unprecedented',
+      'empirical',
+      'cognitive',
+    ];
+    const otherWords = srsCards
+      .filter((c) => c.word.toLowerCase() !== activeCard.word.toLowerCase())
+      .map((c) => c.word);
+    const combinedPool = Array.from(new Set([...otherWords, ...fallbackPool])).filter(
+      (w) => w.toLowerCase() !== activeCard.word.toLowerCase()
+    );
+    const seed = activeCard.word.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+    const distractors: string[] = [];
+    for (let i = 0; i < combinedPool.length && distractors.length < 3; i++) {
+      const pick = combinedPool[(seed + i * 3) % combinedPool.length];
+      if (!distractors.includes(pick)) distractors.push(pick);
+    }
+    const rawOptions = [activeCard.word, ...distractors.slice(0, 3)];
+    return rawOptions
+      .map((opt, idx) => ({ opt, sortKey: (seed + idx * 7) % 11 }))
+      .sort((a, b) => a.sortKey - b.sortKey)
+      .map((item) => item.opt);
+  })();
 
   const handleCreateCustomCard = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1463,83 +1539,294 @@ export const VocabAndSrsModules: React.FC<VocabAndSrsProps> = ({
             )}
           </div>
 
+          {/* Quizlet-Style 3-Mode SRS Study Switcher */}
+          <div className="flex flex-wrap items-center justify-between gap-2 p-1.5 rounded-xl bg-[#FAF8F5] dark:bg-[#0B0F17] border border-[#E6E2DA] dark:border-[#263042]">
+            <div className="flex flex-wrap items-center gap-1">
+              {(
+                [
+                  { id: 'flip', label: '🃏 1. Lật Thẻ Ghi Nhớ (Flip Card)' },
+                  { id: 'quiz', label: '🎯 2. Trắc Nghiệm 4 Đáp Án (Quiz)' },
+                  { id: 'dictation', label: '⌨️ 3. Nghe & Gõ Chính Tả (Dictation)' },
+                ] as const
+              ).map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => {
+                    setSrsPracticeMode(m.id);
+                    setIsFlipped(false);
+                    setSrsMcqSelected(null);
+                    setSrsDictationInput('');
+                    setSrsDictationChecked(false);
+                  }}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+                    srsPracticeMode === m.id
+                      ? 'bg-[#18181B] text-white dark:bg-[#F3F0E6] dark:text-[#0B0F17]'
+                      : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
+                  }`}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {activeCard ? (
             <div className="space-y-5">
-              {/* Interactive Flip Card */}
-              <div
-                onClick={() => setIsFlipped(!isFlipped)}
-                className="min-h-[280px] rounded-xl border border-[#E6E2DA] dark:border-[#263042] bg-[#FAF8F5] dark:bg-[#0B0F17] p-6 md:p-8 flex flex-col justify-between cursor-pointer select-none transition-colors hover:border-[#991B1B]"
-              >
-                <div className="flex items-center justify-between text-xs text-zinc-500 font-mono-tabular">
-                  <span>
-                    CEFR {activeCard.cefrLevel} · {activeCard.topic} · {activeCard.masteryLevel}
-                  </span>
-                  <span>
-                    Interval: {activeCard.intervalDays}d · Ease: {activeCard.easeFactor.toFixed(2)}
-                  </span>
-                </div>
+              {srsPracticeMode === 'flip' && (
+                <>
+                  {/* Mode 1: Interactive Flip Card */}
+                  <div
+                    onClick={() => setIsFlipped(!isFlipped)}
+                    className="min-h-[280px] rounded-xl border border-[#E6E2DA] dark:border-[#263042] bg-[#FAF8F5] dark:bg-[#0B0F17] p-6 md:p-8 flex flex-col justify-between cursor-pointer select-none transition-colors hover:border-[#991B1B]"
+                  >
+                    <div className="flex items-center justify-between text-xs text-zinc-500 font-mono-tabular">
+                      <span>
+                        CEFR {activeCard.cefrLevel} · {activeCard.topic} · {activeCard.masteryLevel}
+                      </span>
+                      <span>
+                        Interval: {activeCard.intervalDays}d · Ease: {activeCard.easeFactor.toFixed(2)}
+                      </span>
+                    </div>
 
-                <div className="my-6 text-center space-y-3">
-                  <div className="flex items-center justify-center gap-3">
-                    <h2 className="text-3xl md:text-4xl font-bold font-serif-editorial">
-                      {activeCard.word}
-                    </h2>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        speakText(activeCard.word);
-                      }}
-                      className="p-2 rounded-lg bg-white dark:bg-[#151C28] border border-[#E6E2DA] dark:border-[#263042] hover:border-[#991B1B] cursor-pointer"
-                      title="Pronounce word"
-                    >
-                      <Volume2 className="w-4 h-4 text-[#991B1B] dark:text-[#D97706]" />
-                    </button>
-                  </div>
-                  <p className="text-sm font-mono-tabular text-zinc-500">
-                    {activeCard.phonetic} · <span className="italic">{activeCard.partOfSpeech}</span>
-                  </p>
-
-                  {isFlipped ? (
-                    <div className="pt-4 border-t border-[#E6E2DA] dark:border-[#263042] space-y-2.5 max-w-xl mx-auto">
-                      {activeCardBilingual?.vietnameseMeaning && (
-                        <div className="inline-block px-3.5 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-300 dark:border-emerald-800 text-sm font-bold text-emerald-900 dark:text-emerald-300">
-                          🇻🇳 Nghĩa Tiếng Việt: {activeCardBilingual.vietnameseMeaning}
-                        </div>
-                      )}
-                      <p className="text-sm font-medium text-[#18181B] dark:text-[#F3F0E6]">
-                        {activeCard.definition}
+                    <div className="my-6 text-center space-y-3">
+                      <div className="flex items-center justify-center gap-3">
+                        <h2 className="text-3xl md:text-4xl font-bold font-serif-editorial">
+                          {activeCard.word}
+                        </h2>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            speakText(activeCard.word);
+                          }}
+                          className="p-2 rounded-lg bg-white dark:bg-[#151C28] border border-[#E6E2DA] dark:border-[#263042] hover:border-[#991B1B] cursor-pointer"
+                          title="Pronounce word"
+                        >
+                          <Volume2 className="w-4 h-4 text-[#991B1B] dark:text-[#D97706]" />
+                        </button>
+                      </div>
+                      <p className="text-sm font-mono-tabular text-zinc-500">
+                        {activeCard.phonetic} · <span className="italic">{activeCard.partOfSpeech}</span>
                       </p>
-                      {activeCard.exampleSentence && (
-                        <div className="space-y-1 pt-1">
-                          <p className="text-xs text-zinc-600 dark:text-zinc-400 italic">
-                            “{activeCard.exampleSentence}”
+
+                      {isFlipped ? (
+                        <div className="pt-4 border-t border-[#E6E2DA] dark:border-[#263042] space-y-2.5 max-w-xl mx-auto">
+                          {activeCardBilingual?.vietnameseMeaning && (
+                            <div className="inline-block px-3.5 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-300 dark:border-emerald-800 text-sm font-bold text-emerald-900 dark:text-emerald-300">
+                              🇻🇳 Nghĩa Tiếng Việt: {activeCardBilingual.vietnameseMeaning}
+                            </div>
+                          )}
+                          <p className="text-sm font-medium text-[#18181B] dark:text-[#F3F0E6]">
+                            {activeCard.definition}
                           </p>
-                          {activeCardBilingual?.exampleTranslationVi && (
-                            <p className="text-xs text-emerald-800 dark:text-emerald-400">
-                              🇻🇳 “{activeCardBilingual.exampleTranslationVi}”
-                            </p>
+                          {activeCard.exampleSentence && (
+                            <div className="space-y-1 pt-1">
+                              <p className="text-xs text-zinc-600 dark:text-zinc-400 italic">
+                                “{activeCard.exampleSentence}”
+                              </p>
+                              {activeCardBilingual?.exampleTranslationVi && (
+                                <p className="text-xs text-emerald-800 dark:text-emerald-400">
+                                  🇻🇳 “{activeCardBilingual.exampleTranslationVi}”
+                                </p>
+                              )}
+                            </div>
                           )}
                         </div>
+                      ) : (
+                        <p className="text-xs text-[#991B1B] dark:text-[#D97706] pt-4">
+                          {langMode === 'en'
+                            ? 'Click card to reveal bilingual definition & contextual usage →'
+                            : 'Nhấn vào thẻ để lật xem Nghĩa Tiếng Việt, Định nghĩa Anh & Câu ví dụ →'}
+                        </p>
                       )}
                     </div>
-                  ) : (
-                    <p className="text-xs text-[#991B1B] dark:text-[#D97706] pt-4">
-                      {langMode === 'en'
-                        ? 'Click card to reveal bilingual definition & contextual usage →'
-                        : 'Nhấn vào thẻ để lật xem Nghĩa Tiếng Việt, Định nghĩa Anh & Câu ví dụ →'}
+
+                    <div className="flex items-center justify-between text-[11px] text-zinc-400">
+                      <span>Source: {activeCard.source}</span>
+                      <span className="inline-flex items-center gap-1">
+                        <RotateCcw className="w-3 h-3" />{' '}
+                        {langMode === 'en' ? 'Tap anywhere to flip' : 'Chạm để lật thẻ'}
+                      </span>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {srsPracticeMode === 'quiz' && (
+                /* Mode 2: Quizlet-Style 4-Option Multiple Choice */
+                <div className="rounded-xl border border-[#E6E2DA] dark:border-[#263042] bg-[#FAF8F5] dark:bg-[#0B0F17] p-6 space-y-4">
+                  <div className="flex items-center justify-between text-xs font-mono-tabular text-zinc-500">
+                    <span>
+                      🎯 Chọn từ Tiếng Anh khớp với định nghĩa · CEFR {activeCard.cefrLevel}
+                    </span>
+                    <span>{activeCard.partOfSpeech}</span>
+                  </div>
+
+                  <div className="p-4 rounded-xl bg-white dark:bg-[#151C28] border border-[#E6E2DA] dark:border-[#263042] space-y-2">
+                    {activeCardBilingual?.vietnameseMeaning && (
+                      <p className="text-base font-bold text-emerald-800 dark:text-emerald-300">
+                        🇻🇳 Nghĩa Tiếng Việt: {activeCardBilingual.vietnameseMeaning}
+                      </p>
+                    )}
+                    <p className="text-sm text-[#18181B] dark:text-[#F3F0E6]">
+                      🇬🇧 {activeCard.definition}
                     </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {srsQuizOptions.map((opt, idx) => {
+                      const isCorrect = opt.toLowerCase() === activeCard.word.toLowerCase();
+                      const isChosen = srsMcqSelected === opt;
+                      let btnCls =
+                        'bg-white dark:bg-[#151C28] border-[#E6E2DA] dark:border-[#263042] hover:border-[#991B1B]';
+                      if (srsMcqSelected) {
+                        if (isCorrect) {
+                          btnCls =
+                            'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-600 text-emerald-900 dark:text-emerald-200 font-bold';
+                        } else if (isChosen) {
+                          btnCls =
+                            'bg-red-50 dark:bg-red-950/60 border-red-600 text-red-900 dark:text-red-200';
+                        }
+                      }
+                      return (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => {
+                            setSrsMcqSelected(opt);
+                            speakText(opt);
+                          }}
+                          className={`p-3.5 rounded-xl border text-left text-sm transition-colors cursor-pointer flex items-center justify-between ${btnCls}`}
+                        >
+                          <span>
+                            <strong className="font-mono-tabular mr-2">
+                              {String.fromCharCode(65 + idx)}.
+                            </strong>
+                            {opt}
+                          </span>
+                          {srsMcqSelected && isCorrect && (
+                            <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400">
+                              ✓ Đúng
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {srsMcqSelected && (
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#E6E2DA] dark:border-[#263042]">
+                      <span className="text-xs font-semibold">
+                        {srsMcqSelected.toLowerCase() === activeCard.word.toLowerCase()
+                          ? '🎉 Chính xác! Bấm Ghi nhận Nhớ tốt (Good) để tăng lịch ôn SM-2.'
+                          : `💡 Đáp án đúng là "${activeCard.word}" (${activeCard.phonetic}).`}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleGrade(
+                            srsMcqSelected.toLowerCase() === activeCard.word.toLowerCase()
+                              ? 'Good'
+                              : 'Again'
+                          )
+                        }
+                        className="px-4 py-2 text-xs font-bold text-white bg-[#991B1B] dark:bg-[#D97706] dark:text-[#0B0F17] rounded-lg cursor-pointer"
+                      >
+                        Qua thẻ tiếp theo →
+                      </button>
+                    </div>
                   )}
                 </div>
+              )}
 
-                <div className="flex items-center justify-between text-[11px] text-zinc-400">
-                  <span>Source: {activeCard.source}</span>
-                  <span className="inline-flex items-center gap-1">
-                    <RotateCcw className="w-3 h-3" />{' '}
-                    {langMode === 'en' ? 'Tap anywhere to flip' : 'Chạm để lật thẻ'}
-                  </span>
+              {srsPracticeMode === 'dictation' && (
+                /* Mode 3: Listening & Spelling Dictation */
+                <div className="rounded-xl border border-[#E6E2DA] dark:border-[#263042] bg-[#FAF8F5] dark:bg-[#0B0F17] p-6 space-y-4">
+                  <div className="flex items-center justify-between text-xs font-mono-tabular text-zinc-500">
+                    <span>
+                      ⌨️ Nghe phát âm &amp; Gõ chính tả từ vựng · CEFR {activeCard.cefrLevel}
+                    </span>
+                    <span>
+                      Gợi ý: {activeCard.word[0]}___ ({activeCard.word.length} chữ cái)
+                    </span>
+                  </div>
+
+                  <div className="p-4 rounded-xl bg-white dark:bg-[#151C28] border border-[#E6E2DA] dark:border-[#263042] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      {activeCardBilingual?.vietnameseMeaning && (
+                        <p className="text-sm font-bold text-emerald-800 dark:text-emerald-300">
+                          🇻🇳 Nghĩa: {activeCardBilingual.vietnameseMeaning}
+                        </p>
+                      )}
+                      <p className="text-xs text-zinc-600 dark:text-zinc-400">
+                        {activeCard.definition}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => speakText(activeCard.word)}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-[#991B1B] rounded-lg shrink-0 cursor-pointer"
+                    >
+                      <Volume2 className="w-4 h-4" /> Nghe Phát Âm
+                    </button>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      type="text"
+                      value={srsDictationInput}
+                      onChange={(e) => {
+                        setSrsDictationInput(e.target.value);
+                        setSrsDictationChecked(false);
+                      }}
+                      placeholder={`Gõ từ tiếng Anh (${activeCard.word.length} ký tự, bắt đầu bằng '${activeCard.word[0]}')...`}
+                      className="flex-1 px-3.5 py-2.5 text-sm rounded-lg border border-[#E6E2DA] dark:border-[#263042] bg-white dark:bg-[#151C28]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSrsDictationChecked(true);
+                        speakText(activeCard.word);
+                      }}
+                      className="px-4 py-2.5 text-xs font-bold text-white bg-[#18181B] dark:bg-[#F3F0E6] dark:text-[#0B0F17] rounded-lg cursor-pointer"
+                    >
+                      Kiểm Tra Chính Tả
+                    </button>
+                  </div>
+
+                  {srsDictationChecked && (
+                    <div className="p-3.5 rounded-xl bg-white dark:bg-[#151C28] border border-[#E6E2DA] dark:border-[#263042] flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <div>
+                        {srsDictationInput.trim().toLowerCase() ===
+                        activeCard.word.toLowerCase() ? (
+                          <span className="font-bold text-emerald-700 dark:text-emerald-400">
+                            ✓ Chính xác tuyệt đối: {activeCard.word} ({activeCard.phonetic})
+                          </span>
+                        ) : (
+                          <span className="font-bold text-red-600 dark:text-red-400">
+                            ✗ Chưa khớp. Đáp án đúng là: {activeCard.word} ({activeCard.phonetic})
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleGrade(
+                            srsDictationInput.trim().toLowerCase() ===
+                              activeCard.word.toLowerCase()
+                              ? 'Good'
+                              : 'Again'
+                          )
+                        }
+                        className="px-3.5 py-1.5 font-bold text-white bg-[#991B1B] rounded-lg cursor-pointer"
+                      >
+                        Lưu kết quả &amp; Qua thẻ tiếp →
+                      </button>
+                    </div>
+                  )}
                 </div>
-              </div>
+              )}
 
               {/* SM-2 Recall Rating Buttons */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
