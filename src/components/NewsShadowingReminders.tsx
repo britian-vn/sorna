@@ -79,13 +79,16 @@ export const NewsShadowingReminders: React.FC<NewsShadowingRemindersProps> = ({
   const [activeArticleId, setActiveArticleId] = useState<string>(NEWS_ARTICLES[0].id);
   const [showArticleViTranslation, setShowArticleViTranslation] = useState<boolean>(true);
   const [selectedWordInfo, setSelectedWordInfo] = useState<{
+    tokenKey: string;
     word: string;
+    phraseContext: string;
     phonetic: string;
     partOfSpeech: string;
     definition: string;
     vietnameseMeaning: string;
     cefrLevel: CefrLevel;
     exampleSentence: string;
+    horizontalAlign: 'left' | 'center' | 'right';
   } | null>(null);
   const [newsQuizAnswers, setNewsQuizAnswers] = useState<Record<string, number>>({});
   const [newsQuizSubmitted, setNewsQuizSubmitted] = useState<Record<string, boolean>>({});
@@ -693,122 +696,208 @@ export const NewsShadowingReminders: React.FC<NewsShadowingRemindersProps> = ({
               </p>
             </div>
 
-            {/* Instant Word Definition Popover Card with Vietnamese Meaning */}
-            {selectedWordInfo ? (
-              <div className="p-4 rounded-xl bg-[#FAF8F5] dark:bg-[#0B0F17] border border-[#991B1B] dark:border-[#D97706] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="space-y-1.5">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-lg font-bold font-serif-editorial">
-                      {selectedWordInfo.word}
-                    </span>
-                    <span className="text-xs font-mono-tabular text-zinc-500">
-                      {selectedWordInfo.phonetic}
-                    </span>
-                    <span className="text-xs italic text-zinc-500">
-                      · {selectedWordInfo.partOfSpeech} · CEFR {selectedWordInfo.cefrLevel}
-                    </span>
-                    <span className="px-2.5 py-0.5 text-xs font-semibold rounded bg-emerald-50 text-emerald-900 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
-                      🇻🇳 {selectedWordInfo.vietnameseMeaning}
-                    </span>
-                    <button
-                      onClick={() => speakText(selectedWordInfo.word)}
-                      className="p-1 rounded border border-[#E6E2DA] dark:border-[#263042] bg-white dark:bg-[#151C28] cursor-pointer"
-                    >
-                      <Volume2 className="w-3.5 h-3.5 text-[#991B1B] dark:text-[#D97706]" />
-                    </button>
-                  </div>
-                  <p className="text-xs text-[#18181B] dark:text-[#F3F0E6]">
-                    {selectedWordInfo.definition}
-                  </p>
-                </div>
-
-                {(() => {
-                  const alreadyInDeck = srsCards.some(
-                    (c) => c.word.toLowerCase() === selectedWordInfo.word.toLowerCase()
-                  );
-                  return (
-                    <button
-                      onClick={() =>
-                        onAddSrsWord(
-                          {
-                            word: selectedWordInfo.word,
-                            phonetic: selectedWordInfo.phonetic,
-                            partOfSpeech: selectedWordInfo.partOfSpeech,
-                            definition: `Nghĩa TV: ${selectedWordInfo.vietnameseMeaning} — ${selectedWordInfo.definition}`,
-                            vietnameseMeaning: selectedWordInfo.vietnameseMeaning,
-                            exampleSentence: selectedWordInfo.exampleSentence,
-                            collocations: [],
-                          },
-                          currentArticle.topic as IeltsTopic,
-                          selectedWordInfo.cefrLevel,
-                          'news-reader'
-                        )
-                      }
-                      disabled={alreadyInDeck}
-                      className={`px-3.5 py-2 text-xs font-medium rounded-lg inline-flex items-center gap-1.5 shrink-0 cursor-pointer ${
-                        alreadyInDeck
-                          ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
-                          : 'bg-[#991B1B] text-white hover:bg-[#7F1D1D] dark:bg-[#D97706]'
-                      }`}
-                    >
-                      {alreadyInDeck ? (
-                        <>
-                          <Check className="w-3.5 h-3.5" />
-                          <span>Đã lưu trong SRS</span>
-                        </>
-                      ) : (
-                        <>
-                          <Plus className="w-3.5 h-3.5" />
-                          <span>+ Lưu vào Thẻ SRS</span>
-                        </>
-                      )}
-                    </button>
-                  );
-                })()}
-              </div>
-            ) : (
-              <div className="px-4 py-2.5 rounded-lg bg-[#FAF8F5] dark:bg-[#0B0F17] border border-[#E6E2DA] dark:border-[#263042] text-xs text-zinc-500 flex items-center gap-2">
-                <BookOpen className="w-3.5 h-3.5 text-[#991B1B] dark:text-[#D97706]" />
+            {/* Concise Reading Tip */}
+            <div className="px-3.5 py-2 rounded-xl bg-[#FAF8F5] dark:bg-[#0B0F17] border border-[#E6E2DA] dark:border-[#263042] text-xs text-zinc-500 flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2">
+                <BookOpen className="w-3.5 h-3.5 text-[#991B1B] dark:text-[#D97706] shrink-0" />
                 <span>
                   {langMode === 'en'
-                    ? 'Interactive Reading Tip: Click on any word in the paragraphs below to see its bilingual definition and save it to your SRS Flashcard Deck.'
-                    : 'Mẹo Đọc Tương Tác: Nhấn vào bất kỳ từ nào trong bài báo bên dưới để xem ngay Nghĩa Tiếng Việt + Phiên âm và lưu vào bộ thẻ SRS.'}
+                    ? 'Click any word below to open an instant popup definition right next to the word.'
+                    : 'Chạm vào bất kỳ từ nào trong bài để mở cửa sổ nhỏ giải thích từ/cụm từ ngay cạnh từ đó.'}
                 </span>
-              </div>
-            )}
+              </span>
+              {selectedWordInfo && (
+                <button
+                  onClick={() => setSelectedWordInfo(null)}
+                  className="text-[11px] font-semibold text-[#991B1B] dark:text-[#D97706] hover:underline shrink-0 cursor-pointer"
+                >
+                  Đóng khung tra từ ✕
+                </button>
+              )}
+            </div>
 
-            {/* Tokenized Interactive Article Paragraphs + Optional Vietnamese Paragraph Translation */}
+            {/* Tokenized Interactive Article Paragraphs with Floating Inline Popover Next to Clicked Word */}
             <div className="space-y-5 text-base leading-relaxed">
               {currentArticle.paragraphs.map((para, pIdx) => {
                 const tokens = para.split(/(\s+)/);
                 return (
                   <div key={pIdx} className="space-y-2">
-                    <p className="text-[#18181B] dark:text-[#F3F0E6]">
+                    <div className="text-[#18181B] dark:text-[#F3F0E6] leading-8">
                       {tokens.map((tok, tIdx) => {
                         if (/^\s+$/.test(tok)) return tok;
-                        const clean = tok.replace(/[^a-zA-Z-]/g, '').toLowerCase();
-                        const isActive = selectedWordInfo?.word === clean && clean.length > 0;
+                        const tokenKey = `${pIdx}_${tIdx}`;
+                        const isActive = selectedWordInfo?.tokenKey === tokenKey;
+
                         return (
-                          <span
-                            key={tIdx}
-                            onClick={() => {
-                              const info = lookupWordDefinition(tok, para);
-                              if (info) {
-                                setSelectedWordInfo(info);
-                                speakText(info.word);
-                              }
-                            }}
-                            className={`cursor-pointer rounded px-0.5 transition-colors ${
-                              isActive
-                                ? 'bg-[#991B1B] text-white dark:bg-[#D97706]'
-                                : 'hover:bg-[#991B1B]/15 dark:hover:bg-[#D97706]/25'
-                            }`}
-                          >
-                            {tok}
+                          <span key={tIdx} className="relative inline-block">
+                            <span
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (isActive) {
+                                  setSelectedWordInfo(null);
+                                  return;
+                                }
+                                const info = lookupWordDefinition(tok, para);
+                                if (info) {
+                                  // Build surrounding 2-3 word phrase context
+                                  const prevWord =
+                                    tIdx >= 2 ? tokens[tIdx - 2]?.replace(/[^a-zA-Z-]/g, '') : '';
+                                  const nextWord =
+                                    tIdx + 2 < tokens.length
+                                      ? tokens[tIdx + 2]?.replace(/[^a-zA-Z-]/g, '')
+                                      : '';
+                                  const phraseContext = [prevWord, info.word, nextWord]
+                                    .filter(Boolean)
+                                    .join(' ');
+
+                                  // Determine horizontal alignment so popover never overflows viewport
+                                  const rect = e.currentTarget.getBoundingClientRect();
+                                  const winW =
+                                    typeof window !== 'undefined' ? window.innerWidth : 1024;
+                                  const horizontalAlign: 'left' | 'center' | 'right' =
+                                    rect.left < 220
+                                      ? 'left'
+                                      : winW - rect.right < 240
+                                      ? 'right'
+                                      : 'center';
+
+                                  setSelectedWordInfo({
+                                    ...info,
+                                    tokenKey,
+                                    phraseContext,
+                                    horizontalAlign,
+                                  });
+                                  speakText(info.word);
+                                }
+                              }}
+                              className={`cursor-pointer rounded px-1 py-0.5 transition-colors select-text ${
+                                isActive
+                                  ? 'bg-[#991B1B] text-white dark:bg-[#D97706] dark:text-[#0B0F17] font-semibold shadow-xs'
+                                  : 'hover:bg-[#991B1B]/15 dark:hover:bg-[#D97706]/25'
+                              }`}
+                            >
+                              {tok}
+                            </span>
+
+                            {/* Floating Small Popup Window Directly Next to Clicked Word */}
+                            {isActive && selectedWordInfo && (
+                              <div
+                                onClick={(e) => e.stopPropagation()}
+                                className={`absolute z-40 top-full mt-2 w-72 sm:w-80 p-3.5 rounded-2xl bg-white dark:bg-[#151C28] border-2 border-[#991B1B] dark:border-[#D97706] shadow-2xl text-left space-y-2.5 leading-normal ${
+                                  selectedWordInfo.horizontalAlign === 'left'
+                                    ? 'left-0'
+                                    : selectedWordInfo.horizontalAlign === 'right'
+                                    ? 'right-0'
+                                    : 'left-1/2 -translate-x-1/2'
+                                }`}
+                              >
+                                <div className="flex items-start justify-between gap-2 border-b border-[#E6E2DA] dark:border-[#263042] pb-2">
+                                  <div>
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                      <span className="text-base font-bold text-[#18181B] dark:text-[#F3F0E6]">
+                                        {selectedWordInfo.word}
+                                      </span>
+                                      <span className="text-xs font-mono-tabular text-zinc-500">
+                                        {selectedWordInfo.phonetic}
+                                      </span>
+                                      <button
+                                        onClick={() => speakText(selectedWordInfo.word)}
+                                        className="p-1 rounded-md border border-[#E6E2DA] dark:border-[#263042] bg-[#FAF8F5] dark:bg-[#0B0F17] hover:border-[#991B1B] cursor-pointer"
+                                        title="Nghe phát âm"
+                                      >
+                                        <Volume2 className="w-3.5 h-3.5 text-[#991B1B] dark:text-[#D97706]" />
+                                      </button>
+                                    </div>
+                                    <p className="text-[11px] text-zinc-500">
+                                      <em>{selectedWordInfo.partOfSpeech}</em> · CEFR{' '}
+                                      <strong>{selectedWordInfo.cefrLevel}</strong>
+                                      {selectedWordInfo.phraseContext &&
+                                        selectedWordInfo.phraseContext !== selectedWordInfo.word && (
+                                          <span> · Cụm: “{selectedWordInfo.phraseContext}”</span>
+                                        )}
+                                    </p>
+                                  </div>
+                                  <button
+                                    onClick={() => setSelectedWordInfo(null)}
+                                    className="p-1 text-zinc-400 hover:text-zinc-800 dark:hover:text-white cursor-pointer"
+                                    title="Đóng"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                  <div className="px-2.5 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 text-xs font-semibold text-emerald-900 dark:text-emerald-200">
+                                    🇻🇳 Nghĩa: {selectedWordInfo.vietnameseMeaning}
+                                  </div>
+                                  <p className="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed">
+                                    {selectedWordInfo.definition}
+                                  </p>
+                                </div>
+
+                                <div className="pt-1 flex items-center justify-between gap-2">
+                                  <button
+                                    onClick={() =>
+                                      speakText(selectedWordInfo.phraseContext || selectedWordInfo.word)
+                                    }
+                                    className="px-2.5 py-1.5 text-[11px] font-medium rounded-lg border border-[#E6E2DA] dark:border-[#263042] bg-[#FAF8F5] dark:bg-[#0B0F17] cursor-pointer"
+                                  >
+                                    🔊 Nghe cả cụm
+                                  </button>
+
+                                  {(() => {
+                                    const alreadyInDeck = srsCards.some(
+                                      (c) =>
+                                        c.word.toLowerCase() ===
+                                        selectedWordInfo.word.toLowerCase()
+                                    );
+                                    return (
+                                      <button
+                                        onClick={() =>
+                                          onAddSrsWord(
+                                            {
+                                              word: selectedWordInfo.word,
+                                              phonetic: selectedWordInfo.phonetic,
+                                              partOfSpeech: selectedWordInfo.partOfSpeech,
+                                              definition: `Nghĩa TV: ${selectedWordInfo.vietnameseMeaning} — ${selectedWordInfo.definition}`,
+                                              vietnameseMeaning:
+                                                selectedWordInfo.vietnameseMeaning,
+                                              exampleSentence: selectedWordInfo.exampleSentence,
+                                              collocations: [],
+                                            },
+                                            currentArticle.topic as IeltsTopic,
+                                            selectedWordInfo.cefrLevel,
+                                            'news-reader'
+                                          )
+                                        }
+                                        disabled={alreadyInDeck}
+                                        className={`px-3 py-1.5 text-xs font-semibold rounded-lg inline-flex items-center gap-1 cursor-pointer ${
+                                          alreadyInDeck
+                                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                                            : 'bg-[#991B1B] text-white hover:bg-[#7F1D1D] dark:bg-[#D97706] dark:text-[#0B0F17]'
+                                        }`}
+                                      >
+                                        {alreadyInDeck ? (
+                                          <>
+                                            <Check className="w-3.5 h-3.5" />
+                                            <span>Đã lưu SRS</span>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Plus className="w-3.5 h-3.5" />
+                                            <span>+ Lưu Thẻ SRS</span>
+                                          </>
+                                        )}
+                                      </button>
+                                    );
+                                  })()}
+                                </div>
+                              </div>
+                            )}
                           </span>
                         );
                       })}
-                    </p>
+                    </div>
                     {showVi &&
                       showArticleViTranslation &&
                       currentArticle.paragraphsVi?.[pIdx] && (

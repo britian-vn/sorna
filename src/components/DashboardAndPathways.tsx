@@ -547,42 +547,40 @@ export const DashboardAndPathways: React.FC<DashboardAndPathwaysProps> = ({
             </p>
           </div>
 
-          {/* 3 Structured Daily Action Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+          {/* Primary Actions */}
+          <div className="flex flex-wrap items-center gap-3 pt-2">
             <button
               onClick={() => onNavigate('srs-deck')}
-              className="text-left p-4 rounded-xl border border-[#E6E2DA] dark:border-[#263042] bg-[#FAF8F5] dark:bg-[#0B0F17] hover:border-[#991B1B] transition-colors cursor-pointer space-y-1"
+              className="px-4 py-2.5 text-xs font-semibold text-white bg-[#991B1B] hover:bg-[#7F1D1D] dark:bg-[#D97706] dark:text-[#0B0F17] rounded-xl inline-flex items-center gap-2 cursor-pointer"
             >
-              <div className="flex items-center justify-between text-xs font-semibold text-[#991B1B] dark:text-[#D97706]">
-                <span>BƯỚC 1 · TỪ VỰNG SRS</span>
-                <Layers className="w-4 h-4" />
-              </div>
-              <p className="text-sm font-bold">Ôn {dueCards.length} thẻ đến hạn</p>
-              <p className="text-xs text-zinc-500">Lặp lại ngắt quãng SM-2</p>
+              <Layers className="w-4 h-4" />
+              <span>
+                {langMode === 'en'
+                  ? `Review ${dueCards.length} SRS Flashcards`
+                  : `Ôn tập ${dueCards.length} Thẻ Từ Vựng SRS`}
+              </span>
             </button>
-
             <button
               onClick={() => onNavigate('vocab-grammar')}
-              className="text-left p-4 rounded-xl border border-[#E6E2DA] dark:border-[#263042] bg-[#FAF8F5] dark:bg-[#0B0F17] hover:border-[#991B1B] transition-colors cursor-pointer space-y-1"
+              className="px-4 py-2.5 text-xs font-semibold border border-[#E6E2DA] dark:border-[#263042] bg-[#FAF8F5] dark:bg-[#0B0F17] hover:border-[#991B1B] rounded-xl inline-flex items-center gap-2 cursor-pointer"
             >
-              <div className="flex items-center justify-between text-xs font-semibold text-[#991B1B] dark:text-[#D97706]">
-                <span>BƯỚC 2 · NGỮ PHÁP</span>
-                <BookOpen className="w-4 h-4" />
-              </div>
-              <p className="text-sm font-bold">16.750 Từ &amp; Đề 20 Câu</p>
-              <p className="text-xs text-zinc-500">Chữa lỗi song ngữ &amp; đổi đề</p>
+              <BookOpen className="w-4 h-4 text-[#991B1B] dark:text-[#D97706]" />
+              <span>
+                {langMode === 'en'
+                  ? '16,750 Words & 20-Q Grammar'
+                  : 'Kho 16.750 Từ & Đề 20 Câu'}
+              </span>
             </button>
-
             <button
               onClick={() => onNavigate('shadowing')}
-              className="text-left p-4 rounded-xl border border-[#E6E2DA] dark:border-[#263042] bg-[#FAF8F5] dark:bg-[#0B0F17] hover:border-[#991B1B] transition-colors cursor-pointer space-y-1"
+              className="px-4 py-2.5 text-xs font-semibold border border-[#E6E2DA] dark:border-[#263042] bg-[#FAF8F5] dark:bg-[#0B0F17] hover:border-[#991B1B] rounded-xl inline-flex items-center gap-2 cursor-pointer"
             >
-              <div className="flex items-center justify-between text-xs font-semibold text-[#991B1B] dark:text-[#D97706]">
-                <span>BƯỚC 3 · LUYỆN NGHE</span>
-                <Video className="w-4 h-4" />
-              </div>
-              <p className="text-sm font-bold">62+ Video Điền Từ</p>
-              <p className="text-xs text-zinc-500">Anime, Phim &amp; Học thuật</p>
+              <Video className="w-4 h-4 text-[#991B1B] dark:text-[#D97706]" />
+              <span>
+                {langMode === 'en'
+                  ? '62+ YouTube Video Cloze'
+                  : '62+ Video YouTube & Điền Từ'}
+              </span>
             </button>
           </div>
         </div>

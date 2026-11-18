@@ -30,6 +30,10 @@ import {
   Flame,
   Sparkles,
   Languages,
+  Settings,
+  PanelLeftClose,
+  PanelLeftOpen,
+  UserCheck,
 } from 'lucide-react';
 import {
   auth,
@@ -132,15 +136,34 @@ function ScholarBandWorkspace() {
     }
   }, [langMode]);
 
-  // Navigation State
+  // Navigation & UI State
   const [activeModule, setActiveModule] = useState<string>('dashboard');
+  const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState<boolean>(true);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [showPlacementModal, setShowPlacementModal] = useState(false);
   const [showNotifPopover, setShowNotifPopover] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
-  // Auth & Data State
+  // Auth & Local Account Fallback State (Fixes login on GitHub Pages / iframe popup blockers)
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
+  const [localScholarAccount, setLocalScholarAccount] = useState<{
+    name: string;
+    email: string;
+  } | null>(() => {
+    try {
+      const saved = localStorage.getItem('scholarband_local_account_v1');
+      if (saved) return JSON.parse(saved);
+    } catch {
+      // ignore
+    }
+    return null;
+  });
+  const [loginNameInput, setLoginNameInput] = useState('');
+  const [loginEmailInput, setLoginEmailInput] = useState('');
+  const [loginErrorMsg, setLoginErrorMsg] = useState<string | null>(null);
+  const [isSigningInGoogle, setIsSigningInGoogle] = useState(false);
 
   const [profile, setProfile] = useState<UserProfileData>(() => {
     try {
@@ -669,98 +692,193 @@ function ScholarBandWorkspace() {
   const currentModuleTitle =
     navItems.find((n) => n.id === activeModule)?.label || 'Workspace';
 
+  const handleGoogleSignIn = async () => {
+    setLoginErrorMsg(null);
+    setIsSigningInGoogle(true);
+    try {
+      const cred = await signInWithGoogle();
+      if (cred?.user) {
+        setShowLoginModal(false);
+        addNotificationToast(
+          'Đăng Nhập Thành Công',
+          `Chào mừng ${cred.user.displayName || cred.user.email || 'Học viên'}!`
+        );
+      }
+    } catch (err: unknown) {
+      const raw = err instanceof Error ? err.message : String(err);
+      if (raw.includes('unauthorized-domain')) {
+        setLoginErrorMsg(
+          'Tên miền hiện tại (ví dụ: GitHub Pages) chưa được thêm vào danh sách Authorized Domains của Firebase Popup. Bạn có thể đăng nhập ngay bằng Tên & Email ở khung bên dưới!'
+        );
+      } else if (raw.includes('popup-blocked') || raw.includes('popup-closed')) {
+        setLoginErrorMsg(
+          'Cửa sổ Popup Google bị trình duyệt chặn hoặc đã đóng. Bạn có thể dùng Đăng nhập Nhanh bằng Tên & Email ngay bên dưới!'
+        );
+      } else {
+        setLoginErrorMsg(
+          'Không thể mở cửa sổ Google Auth trong môi trường này. Hãy điền Tên & Email bên dưới để đăng nhập ngay!'
+        );
+      }
+    } finally {
+      setIsSigningInGoogle(false);
+    }
+  };
+
+  const handleQuickScholarLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanName = loginNameInput.trim() || 'Học viên IELTS';
+    const cleanEmail = loginEmailInput.trim() || 'scholar@ielts.edu.vn';
+    const account = { name: cleanName, email: cleanEmail };
+    setLocalScholarAccount(account);
+    try {
+      localStorage.setItem('scholarband_local_account_v1', JSON.stringify(account));
+    } catch {
+      // ignore
+    }
+    updateProfileState({ displayName: cleanName });
+    setShowLoginModal(false);
+    setLoginErrorMsg(null);
+    addNotificationToast(
+      'Đã Đăng Nhập Tài Khoản Học Tập',
+      `Xin chào ${cleanName}! Toàn bộ tiến độ và thẻ SRS của bạn đã được kích hoạt.`
+    );
+  };
+
+  const handleSignOutAll = async () => {
+    if (currentUser) {
+      try {
+        await signOutUser();
+      } catch {
+        // ignore
+      }
+    }
+    setLocalScholarAccount(null);
+    try {
+      localStorage.removeItem('scholarband_local_account_v1');
+    } catch {
+      // ignore
+    }
+    addNotificationToast('Đã Đăng Xuất', 'Bạn đã đăng xuất khỏi tài khoản hiện tại.');
+  };
+
+  const isUserLoggedIn = Boolean(currentUser || localScholarAccount);
+  const activeDisplayName =
+    currentUser?.displayName ||
+    localScholarAccount?.name ||
+    profile.displayName ||
+    'Scholar';
+
   return (
     <div className="min-h-screen flex bg-[#FAF8F5] dark:bg-[#0B0F17] text-[#18181B] dark:text-[#F3F0E6]">
       <OfflineIndicator />
 
-      {/* Desktop Fixed Sidebar Navigation (280px) */}
-      <aside className="hidden lg:flex flex-col justify-between w-[280px] shrink-0 border-r border-[#E6E2DA] dark:border-[#263042] bg-white dark:bg-[#151C28] p-5 select-none">
-        <div className="space-y-6">
-          {/* Brand Wordmark */}
-          <div className="flex items-center justify-between border-b border-[#E6E2DA] dark:border-[#263042] pb-4">
-            <button
-              onClick={() => setActiveModule('dashboard')}
-              className="text-xl font-bold tracking-tight text-[#18181B] dark:text-[#F3F0E6] cursor-pointer"
-            >
-              ScholarBand
-            </button>
-            <span className="px-2.5 py-1 rounded-md bg-[#FAF8F5] dark:bg-[#0B0F17] border border-[#E6E2DA] dark:border-[#263042] text-xs font-mono-tabular text-[#991B1B] dark:text-[#D97706] font-semibold">
-              Mục tiêu {profile.targetBand.toFixed(1)}
-            </span>
-          </div>
-
-          {/* Grouped Scientific Navigation Links */}
-          <nav className="space-y-6" aria-label="Main Learning Navigation">
-            {navGroups.map((group) => (
-              <div key={group.groupTitle} className="space-y-2">
-                <p className="px-3 text-xs font-semibold text-zinc-400 dark:text-zinc-500">
-                  {group.groupTitle}
-                </p>
-                <div className="space-y-1">
-                  {group.items.map((item) => {
-                    const Icon = item.icon;
-                    const active = activeModule === item.id;
-                    return (
-                      <button
-                        key={item.id}
-                        onClick={() => setActiveModule(item.id)}
-                        className={`w-full flex items-center justify-between gap-2.5 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-colors cursor-pointer ${
-                          active
-                            ? 'bg-[#991B1B] text-white dark:bg-[#D97706] dark:text-[#0B0F17] font-semibold shadow-xs'
-                            : 'text-zinc-700 dark:text-zinc-300 hover:bg-[#FAF8F5] dark:hover:bg-[#0B0F17]'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <Icon className="w-4 h-4 shrink-0" />
-                          <span className="truncate">{item.label}</span>
-                        </div>
-                        {item.badge && (
-                          <span
-                            className={`text-[11px] font-mono-tabular shrink-0 px-1.5 py-0.5 rounded ${
-                              active
-                                ? 'bg-black/15 text-white dark:text-[#0B0F17]'
-                                : item.badgeAlert
-                                ? 'bg-red-50 dark:bg-amber-950/50 text-[#991B1B] dark:text-[#D97706] font-semibold'
-                                : 'text-zinc-400 dark:text-zinc-500'
-                            }`}
-                          >
-                            {item.badge}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
+      {/* Desktop Collapsible Sidebar Navigation (Can be toggled open/closed anytime) */}
+      {isDesktopSidebarOpen && (
+        <aside className="hidden lg:flex flex-col justify-between w-[276px] shrink-0 border-r border-[#E6E2DA] dark:border-[#263042] bg-white dark:bg-[#151C28] p-5 select-none transition-all">
+          <div className="space-y-6">
+            {/* Brand Wordmark + Collapse Sidebar Button */}
+            <div className="flex items-center justify-between border-b border-[#E6E2DA] dark:border-[#263042] pb-4">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setActiveModule('dashboard')}
+                  className="text-xl font-bold tracking-tight text-[#18181B] dark:text-[#F3F0E6] cursor-pointer"
+                >
+                  ScholarBand
+                </button>
+                <span className="px-2 py-0.5 rounded bg-[#FAF8F5] dark:bg-[#0B0F17] border border-[#E6E2DA] dark:border-[#263042] text-[11px] font-mono-tabular text-[#991B1B] dark:text-[#D97706] font-semibold">
+                  Band {profile.targetBand.toFixed(1)}
+                </span>
               </div>
-            ))}
-          </nav>
-        </div>
+              <button
+                onClick={() => setIsDesktopSidebarOpen(false)}
+                className="p-1.5 rounded-lg text-zinc-500 hover:text-[#18181B] dark:hover:text-white hover:bg-[#FAF8F5] dark:hover:bg-[#0B0F17] cursor-pointer"
+                title="Thu gọn menu sang trái"
+                aria-label="Collapse sidebar"
+              >
+                <PanelLeftClose className="w-4 h-4" />
+              </button>
+            </div>
 
-        {/* Bottom Placement & Cloud Sync Card */}
-        <div className="space-y-3 pt-4 border-t border-[#E6E2DA] dark:border-[#263042]">
-          <button
-            onClick={() => setShowPlacementModal(true)}
-            className="w-full py-2.5 px-3 text-[13px] font-semibold rounded-xl border border-[#E6E2DA] dark:border-[#263042] bg-[#FAF8F5] dark:bg-[#0B0F17] hover:border-[#991B1B] flex items-center justify-center gap-2 cursor-pointer"
-          >
-            <Sparkles className="w-4 h-4 text-[#991B1B] dark:text-[#D97706]" />
-            <span>
-              {profile.diagnosticSavedState && !profile.diagnosticCompleted
-                ? langMode === 'en'
-                  ? 'Resume Placement Test'
-                  : 'Tiếp Tục Thi Đầu Vào'
-                : langMode === 'en'
-                ? '4-Skill Placement Test'
-                : 'Kiểm Tra Xếp Lớp 4 Kỹ Năng'}
-            </span>
-          </button>
-
-          <div className="text-xs text-zinc-500 flex items-center justify-between font-mono-tabular px-1">
-            <span>Trình độ: Band {profile.currentBandLevel}</span>
-            <span>·</span>
-            <span>{currentUser ? 'Đã đồng bộ Cloud' : 'Lưu trên máy'}</span>
+            {/* Grouped Scientific Navigation Links */}
+            <nav className="space-y-6" aria-label="Main Learning Navigation">
+              {navGroups.map((group) => (
+                <div key={group.groupTitle} className="space-y-2">
+                  <p className="px-3 text-xs font-semibold text-zinc-400 dark:text-zinc-500">
+                    {group.groupTitle}
+                  </p>
+                  <div className="space-y-1">
+                    {group.items.map((item) => {
+                      const Icon = item.icon;
+                      const active = activeModule === item.id;
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => setActiveModule(item.id)}
+                          className={`w-full flex items-center justify-between gap-2.5 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-colors cursor-pointer ${
+                            active
+                              ? 'bg-[#991B1B] text-white dark:bg-[#D97706] dark:text-[#0B0F17] font-semibold shadow-xs'
+                              : 'text-zinc-700 dark:text-zinc-300 hover:bg-[#FAF8F5] dark:hover:bg-[#0B0F17]'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <Icon className="w-4 h-4 shrink-0" />
+                            <span className="truncate">{item.label}</span>
+                          </div>
+                          {item.badge && (
+                            <span
+                              className={`text-[11px] font-mono-tabular shrink-0 px-1.5 py-0.5 rounded ${
+                                active
+                                  ? 'bg-black/15 text-white dark:text-[#0B0F17]'
+                                  : item.badgeAlert
+                                  ? 'bg-red-50 dark:bg-amber-950/50 text-[#991B1B] dark:text-[#D97706] font-semibold'
+                                  : 'text-zinc-400 dark:text-zinc-500'
+                              }`}
+                            >
+                              {item.badge}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </nav>
           </div>
-        </div>
-      </aside>
+
+          {/* Bottom Placement & Settings Card */}
+          <div className="space-y-2.5 pt-4 border-t border-[#E6E2DA] dark:border-[#263042]">
+            <button
+              onClick={() => setShowPlacementModal(true)}
+              className="w-full py-2.5 px-3 text-[13px] font-semibold rounded-xl border border-[#E6E2DA] dark:border-[#263042] bg-[#FAF8F5] dark:bg-[#0B0F17] hover:border-[#991B1B] flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <Sparkles className="w-4 h-4 text-[#991B1B] dark:text-[#D97706]" />
+              <span>
+                {profile.diagnosticSavedState && !profile.diagnosticCompleted
+                  ? langMode === 'en'
+                    ? 'Resume Placement Test'
+                    : 'Tiếp Tục Thi Đầu Vào'
+                  : langMode === 'en'
+                  ? '4-Skill Placement Test'
+                  : 'Kiểm Tra Xếp Lớp 4 Kỹ Năng'}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setShowSettingsModal(true)}
+              className="w-full py-2 px-3 text-xs font-medium rounded-xl border border-[#E6E2DA] dark:border-[#263042] hover:border-zinc-400 flex items-center justify-between text-zinc-600 dark:text-zinc-300 cursor-pointer"
+            >
+              <span className="inline-flex items-center gap-2">
+                <Settings className="w-3.5 h-3.5 text-[#991B1B] dark:text-[#D97706]" />
+                <span>Cài đặt Ngôn ngữ &amp; Giao diện</span>
+              </span>
+              <span className="font-mono-tabular text-[11px] opacity-75">
+                {langMode === 'bilingual' ? 'Song ngữ' : langMode === 'vi' ? 'VI' : 'EN'}
+              </span>
+            </button>
+          </div>
+        </aside>
+      )}
 
       {/* Mobile Slide-Over Sidebar Drawer */}
       {mobileSidebarOpen && (
@@ -772,12 +890,10 @@ function ScholarBandWorkspace() {
           <aside className="relative z-10 w-72 max-w-[85vw] bg-white dark:bg-[#151C28] border-r border-[#E6E2DA] dark:border-[#263042] p-5 flex flex-col justify-between overflow-y-auto">
             <div className="space-y-5">
               <div className="flex items-center justify-between border-b border-[#E6E2DA] dark:border-[#263042] pb-3">
-                <span className="text-lg font-bold">
-                  ScholarBand
-                </span>
+                <span className="text-lg font-bold">ScholarBand</span>
                 <button
                   onClick={() => setMobileSidebarOpen(false)}
-                  className="p-1 text-zinc-500"
+                  className="p-1 text-zinc-500 cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -798,7 +914,7 @@ function ScholarBandWorkspace() {
                             setActiveModule(item.id);
                             setMobileSidebarOpen(false);
                           }}
-                          className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-[13px] font-medium ${
+                          className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-[13px] font-medium cursor-pointer ${
                             active
                               ? 'bg-[#991B1B] text-white dark:bg-[#D97706] dark:text-[#0B0F17]'
                               : 'text-zinc-600 dark:text-zinc-300'
@@ -820,7 +936,17 @@ function ScholarBandWorkspace() {
                 ))}
               </nav>
             </div>
-            <div className="pt-4 border-t border-[#E6E2DA] dark:border-[#263042]">
+            <div className="pt-4 border-t border-[#E6E2DA] dark:border-[#263042] space-y-2">
+              <button
+                onClick={() => {
+                  setMobileSidebarOpen(false);
+                  setShowSettingsModal(true);
+                }}
+                className="w-full py-2 px-3 text-xs font-semibold rounded-xl border border-[#E6E2DA] dark:border-[#263042] flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Settings className="w-4 h-4" />
+                <span>Cài đặt Ngôn ngữ &amp; Giao diện</span>
+              </button>
               <PWAInstallButton />
             </div>
           </aside>
@@ -831,16 +957,32 @@ function ScholarBandWorkspace() {
       <div className="flex-1 flex flex-col min-w-0">
         {/* Clean Uncluttered Top Workspace Header */}
         <header className="sticky top-0 z-30 bg-[#FAF8F5]/95 dark:bg-[#0B0F17]/95 backdrop-blur border-b border-[#E6E2DA] dark:border-[#263042] px-4 md:px-8 py-3.5 flex flex-wrap items-center justify-between gap-3">
-          {/* Left: Mobile Menu Trigger + Section Breadcrumb */}
+          {/* Left: Sidebar Toggle Button (Desktop & Mobile) + Section Breadcrumb */}
           <div className="flex items-center gap-3 min-w-0">
+            {/* Mobile Menu Button */}
             <button
               onClick={() => setMobileSidebarOpen(true)}
-              className="lg:hidden p-2 rounded-lg border border-[#E6E2DA] dark:border-[#263042] bg-white dark:bg-[#151C28]"
+              className="lg:hidden p-2 rounded-lg border border-[#E6E2DA] dark:border-[#263042] bg-white dark:bg-[#151C28] cursor-pointer"
               aria-label="Open navigation menu"
             >
               <Menu className="w-4 h-4" />
             </button>
-            <div className="flex items-center gap-2.5 text-sm truncate">
+
+            {/* Desktop Sidebar Collapse / Expand Toggle Button */}
+            <button
+              onClick={() => setIsDesktopSidebarOpen((prev) => !prev)}
+              className="hidden lg:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-[#E6E2DA] dark:border-[#263042] bg-white dark:bg-[#151C28] hover:border-[#991B1B] text-xs font-medium cursor-pointer"
+              title={isDesktopSidebarOpen ? 'Thu gọn menu' : 'Mở menu điều hướng'}
+            >
+              {isDesktopSidebarOpen ? (
+                <PanelLeftClose className="w-4 h-4 text-zinc-600 dark:text-zinc-300" />
+              ) : (
+                <PanelLeftOpen className="w-4 h-4 text-[#991B1B] dark:text-[#D97706]" />
+              )}
+              <span>{isDesktopSidebarOpen ? 'Thu gọn Menu' : 'Mở Menu'}</span>
+            </button>
+
+            <div className="flex items-center gap-2 text-sm truncate">
               <button
                 onClick={() => setActiveModule('dashboard')}
                 className="font-medium text-zinc-500 hover:text-[#18181B] dark:hover:text-[#F3F0E6] cursor-pointer"
@@ -854,43 +996,16 @@ function ScholarBandWorkspace() {
             </div>
           </div>
 
-          {/* Right: Bilingual Mode Switcher, Study Streak, Notification Bell, Theme Toggle, Google Auth */}
+          {/* Right: Streak, Notification Bell, Unified Settings Button, and Login/Account Button */}
           <div className="flex items-center gap-2.5 shrink-0">
-            {/* Quick 3-Mode Language Switcher */}
-            <div
-              className="flex items-center gap-0.5 p-1 rounded-lg border border-[#E6E2DA] dark:border-[#263042] bg-white dark:bg-[#151C28]"
-              title="Chế độ ngôn ngữ hiển thị"
-            >
-              <Languages className="w-3.5 h-3.5 text-[#991B1B] dark:text-[#D97706] mx-1 hidden sm:inline" />
-              {(
-                [
-                  { id: 'bilingual', label: 'Song ngữ' },
-                  { id: 'vi', label: 'Tiếng Việt' },
-                  { id: 'en', label: 'English' },
-                ] as const
-              ).map((m) => (
-                <button
-                  key={m.id}
-                  onClick={() => setLangMode(m.id)}
-                  className={`px-2 py-1 text-[11px] font-medium rounded transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                    langMode === m.id
-                      ? 'bg-[#991B1B] text-white dark:bg-[#D97706] dark:text-[#0B0F17] font-semibold'
-                      : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
-                  }`}
-                >
-                  {m.label}
-                </button>
-              ))}
-            </div>
-
             {/* Streak Indicator */}
             <button
               onClick={() => setActiveModule('reminders')}
               className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-mono-tabular border border-[#E6E2DA] dark:border-[#263042] bg-white dark:bg-[#151C28] rounded-lg cursor-pointer"
-              title="Daily Study Streak"
+              title="Chuỗi ngày học liên tiếp"
             >
               <Flame className="w-3.5 h-3.5 text-amber-600" />
-              <span>{profile.studyStreak}d</span>
+              <span>{profile.studyStreak} ngày</span>
             </button>
 
             {/* In-App Notification Bell & Due SRS Count */}
@@ -907,7 +1022,7 @@ function ScholarBandWorkspace() {
               {showNotifPopover && (
                 <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-[#151C28] border border-[#E6E2DA] dark:border-[#263042] rounded-xl shadow-lg p-4 space-y-3 z-50">
                   <div className="flex items-center justify-between border-b border-[#E6E2DA] dark:border-[#263042] pb-2">
-                    <span className="text-xs font-bold font-serif-editorial">
+                    <span className="text-xs font-bold">
                       Thông Báo &amp; Thẻ SRS Đến Hạn
                     </span>
                     <button
@@ -940,38 +1055,50 @@ function ScholarBandWorkspace() {
               )}
             </div>
 
-            {/* Dark / Light Mode Toggle */}
+            {/* Unified Settings Button (Contains Language Mode + Light/Dark Theme) */}
             <button
-              onClick={() => setDarkMode(!darkMode)}
-              className="p-2 rounded-lg border border-[#E6E2DA] dark:border-[#263042] bg-white dark:bg-[#151C28] hover:border-[#991B1B] cursor-pointer"
-              aria-label="Toggle color theme"
-              title={darkMode ? 'Chuyển sang Giao diện Sáng' : 'Chuyển sang Giao diện Tối'}
+              onClick={() => setShowSettingsModal(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-[#E6E2DA] dark:border-[#263042] bg-white dark:bg-[#151C28] hover:border-[#991B1B] cursor-pointer"
+              title="Cài đặt Ngôn ngữ & Giao diện Sáng/Tối"
             >
-              {darkMode ? (
-                <Sun className="w-4 h-4 text-amber-400" />
-              ) : (
-                <Moon className="w-4 h-4 text-zinc-700" />
-              )}
+              <Settings className="w-3.5 h-3.5 text-[#991B1B] dark:text-[#D97706]" />
+              <span className="hidden sm:inline">
+                {langMode === 'en' ? 'Settings' : 'Cài đặt'}
+              </span>
             </button>
 
-            {/* Google Authentication Button */}
-            {currentUser ? (
+            {/* Account / Login Button */}
+            {isUserLoggedIn ? (
               <div className="flex items-center gap-2">
-                <span className="hidden xl:inline text-xs font-medium truncate max-w-[110px]">
-                  {currentUser.displayName || 'Scholar'}
-                </span>
                 <button
-                  onClick={() => signOutUser()}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-[#E6E2DA] dark:border-[#263042] bg-white dark:bg-[#151C28] rounded-lg hover:border-red-600 cursor-pointer"
+                  onClick={() => setShowLoginModal(true)}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 cursor-pointer"
+                  title="Tài khoản đang đăng nhập"
+                >
+                  <UserCheck className="w-3.5 h-3.5" />
+                  <span className="truncate max-w-[120px]">{activeDisplayName}</span>
+                </button>
+                <button
+                  onClick={handleSignOutAll}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium border border-[#E6E2DA] dark:border-[#263042] bg-white dark:bg-[#151C28] rounded-lg hover:border-red-600 cursor-pointer"
+                  title="Đăng xuất"
                 >
                   <LogOut className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Sign Out</span>
+                  <span className="hidden md:inline">
+                    {langMode === 'en' ? 'Sign Out' : 'Thoát'}
+                  </span>
                 </button>
               </div>
             ) : (
               <button
-                onClick={() => signInWithGoogle()}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-[#991B1B] hover:bg-[#7F1D1D] dark:bg-[#D97706] dark:text-[#0B0F17] rounded-lg whitespace-nowrap shrink-0 cursor-pointer"
+                onClick={() => {
+                  setLoginNameInput(
+                    profile.displayName !== 'Visiting Scholar' ? profile.displayName : ''
+                  );
+                  setLoginErrorMsg(null);
+                  setShowLoginModal(true);
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-[#991B1B] hover:bg-[#7F1D1D] dark:bg-[#D97706] dark:text-[#0B0F17] rounded-lg whitespace-nowrap shrink-0 cursor-pointer"
               >
                 <LogIn className="w-3.5 h-3.5" />
                 <span>{langMode === 'en' ? 'Sign in' : 'Đăng nhập'}</span>
@@ -1114,6 +1241,231 @@ function ScholarBandWorkspace() {
             }
           }}
         />
+      )}
+
+      {/* Unified Settings Modal (Language Mode + Light/Dark Theme + Quick Study Preferences) */}
+      {showSettingsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/55 backdrop-blur-xs">
+          <div className="w-full max-w-md bg-white dark:bg-[#151C28] border border-[#E6E2DA] dark:border-[#263042] rounded-2xl shadow-xl p-6 space-y-5">
+            <div className="flex items-center justify-between border-b border-[#E6E2DA] dark:border-[#263042] pb-3.5">
+              <div className="flex items-center gap-2">
+                <Settings className="w-5 h-5 text-[#991B1B] dark:text-[#D97706]" />
+                <h2 className="text-lg font-bold">
+                  {langMode === 'en' ? 'Workspace Settings' : 'Cài Đặt Hệ Thống'}
+                </h2>
+              </div>
+              <button
+                onClick={() => setShowSettingsModal(false)}
+                className="p-1 text-zinc-500 hover:text-zinc-900 dark:hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* 1. Language Mode Selection */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-300 flex items-center gap-1.5">
+                <Languages className="w-4 h-4 text-[#991B1B] dark:text-[#D97706]" />
+                <span>Chế Độ Ngôn Ngữ Hiển Thị (Language Mode)</span>
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {(
+                  [
+                    { id: 'bilingual', label: 'Song ngữ Anh-Việt' },
+                    { id: 'vi', label: 'Tiếng Việt' },
+                    { id: 'en', label: 'English' },
+                  ] as const
+                ).map((m) => (
+                  <button
+                    key={m.id}
+                    onClick={() => setLangMode(m.id)}
+                    className={`px-3 py-2.5 text-xs font-semibold rounded-xl border transition-colors cursor-pointer ${
+                      langMode === m.id
+                        ? 'bg-[#991B1B] text-white border-[#991B1B] dark:bg-[#D97706] dark:text-[#0B0F17] dark:border-[#D97706]'
+                        : 'bg-[#FAF8F5] dark:bg-[#0B0F17] border-[#E6E2DA] dark:border-[#263042] text-zinc-700 dark:text-zinc-300'
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 2. Light / Dark Theme Selection */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-300 flex items-center gap-1.5">
+                {darkMode ? (
+                  <Moon className="w-4 h-4 text-amber-400" />
+                ) : (
+                  <Sun className="w-4 h-4 text-amber-600" />
+                )}
+                <span>Giao Diện Sáng / Tối (Appearance)</span>
+              </label>
+              <div className="grid grid-cols-2 gap-2.5">
+                <button
+                  onClick={() => setDarkMode(false)}
+                  className={`flex items-center justify-center gap-2 px-3 py-2.5 text-xs font-semibold rounded-xl border transition-colors cursor-pointer ${
+                    !darkMode
+                      ? 'bg-[#991B1B] text-white border-[#991B1B]'
+                      : 'bg-[#FAF8F5] dark:bg-[#0B0F17] border-[#E6E2DA] dark:border-[#263042] text-zinc-700 dark:text-zinc-300'
+                  }`}
+                >
+                  <Sun className="w-4 h-4" />
+                  <span>Giao diện Sáng</span>
+                </button>
+                <button
+                  onClick={() => setDarkMode(true)}
+                  className={`flex items-center justify-center gap-2 px-3 py-2.5 text-xs font-semibold rounded-xl border transition-colors cursor-pointer ${
+                    darkMode
+                      ? 'bg-[#D97706] text-[#0B0F17] border-[#D97706]'
+                      : 'bg-[#FAF8F5] dark:bg-[#0B0F17] border-[#E6E2DA] dark:border-[#263042] text-zinc-700 dark:text-zinc-300'
+                  }`}
+                >
+                  <Moon className="w-4 h-4" />
+                  <span>Giao diện Tối</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 3. Navigation Sidebar Visibility */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-300 flex items-center gap-1.5">
+                <PanelLeftOpen className="w-4 h-4 text-[#991B1B] dark:text-[#D97706]" />
+                <span>Thanh Menu Điều Hướng Bên Trái</span>
+              </label>
+              <div className="grid grid-cols-2 gap-2.5">
+                <button
+                  onClick={() => setIsDesktopSidebarOpen(true)}
+                  className={`px-3 py-2 text-xs font-semibold rounded-xl border cursor-pointer ${
+                    isDesktopSidebarOpen
+                      ? 'bg-[#18181B] text-white dark:bg-[#F3F0E6] dark:text-[#0B0F17]'
+                      : 'bg-[#FAF8F5] dark:bg-[#0B0F17] border-[#E6E2DA] dark:border-[#263042]'
+                  }`}
+                >
+                  Đang mở Menu
+                </button>
+                <button
+                  onClick={() => setIsDesktopSidebarOpen(false)}
+                  className={`px-3 py-2 text-xs font-semibold rounded-xl border cursor-pointer ${
+                    !isDesktopSidebarOpen
+                      ? 'bg-[#18181B] text-white dark:bg-[#F3F0E6] dark:text-[#0B0F17]'
+                      : 'bg-[#FAF8F5] dark:bg-[#0B0F17] border-[#E6E2DA] dark:border-[#263042]'
+                  }`}
+                >
+                  Thu gọn Menu
+                </button>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-[#E6E2DA] dark:border-[#263042] flex items-center justify-between gap-2">
+              <button
+                onClick={() => {
+                  setShowSettingsModal(false);
+                  setActiveModule('reminders');
+                }}
+                className="text-xs font-semibold text-[#991B1B] dark:text-[#D97706] hover:underline cursor-pointer"
+              >
+                Mở cài đặt Lịch nhắc &amp; Lưu Offline →
+              </button>
+              <button
+                onClick={() => setShowSettingsModal(false)}
+                className="px-4 py-2 text-xs font-semibold rounded-xl bg-[#18181B] text-white dark:bg-[#F3F0E6] dark:text-[#0B0F17] cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Login & Account Modal (Supports both Google Auth & Instant Scholar Account Login) */}
+      {showLoginModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/55 backdrop-blur-xs">
+          <div className="w-full max-w-md bg-white dark:bg-[#151C28] border border-[#E6E2DA] dark:border-[#263042] rounded-2xl shadow-xl p-6 space-y-5">
+            <div className="flex items-center justify-between border-b border-[#E6E2DA] dark:border-[#263042] pb-3.5">
+              <div>
+                <h2 className="text-lg font-bold">
+                  {isUserLoggedIn ? 'Thông Tin Tài Khoản Học Viên' : 'Đăng Nhập ScholarBand'}
+                </h2>
+                <p className="text-xs text-zinc-500">
+                  Lưu tiến độ học tập, bộ thẻ từ vựng SRS và lộ trình Band IELTS
+                </p>
+              </div>
+              <button
+                onClick={() => setShowLoginModal(false)}
+                className="p-1 text-zinc-500 hover:text-zinc-900 dark:hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Option 1: Direct Scholar Profile Login (Works everywhere including GitHub Pages & Iframes) */}
+            <form onSubmit={handleQuickScholarLogin} className="space-y-3">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                  Tên học viên hiển thị
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={loginNameInput}
+                  onChange={(e) => setLoginNameInput(e.target.value)}
+                  placeholder="Ví dụ: Minh Anh, Hoàng Nam..."
+                  className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-[#E6E2DA] dark:border-[#263042] bg-[#FAF8F5] dark:bg-[#0B0F17]"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                  Email học viên (Tùy chọn)
+                </label>
+                <input
+                  type="email"
+                  value={loginEmailInput}
+                  onChange={(e) => setLoginEmailInput(e.target.value)}
+                  placeholder="hocvien@gmail.com"
+                  className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-[#E6E2DA] dark:border-[#263042] bg-[#FAF8F5] dark:bg-[#0B0F17]"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-2.5 px-4 text-sm font-semibold rounded-xl bg-[#991B1B] hover:bg-[#7F1D1D] text-white dark:bg-[#D97706] dark:text-[#0B0F17] cursor-pointer"
+              >
+                {isUserLoggedIn ? 'Cập Nhật Hồ Sơ Học Viên' : 'Đăng Nhập Ngay'}
+              </button>
+            </form>
+
+            <div className="relative flex py-1 items-center">
+              <div className="flex-grow border-t border-[#E6E2DA] dark:border-[#263042]" />
+              <span className="shrink-0 mx-3 text-xs text-zinc-400">Hoặc đồng bộ Cloud</span>
+              <div className="flex-grow border-t border-[#E6E2DA] dark:border-[#263042]" />
+            </div>
+
+            {/* Option 2: Google Cloud OAuth Popup */}
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={handleGoogleSignIn}
+                disabled={isSigningInGoogle}
+                className="w-full py-2.5 px-4 text-xs font-semibold rounded-xl border border-[#E6E2DA] dark:border-[#263042] bg-[#FAF8F5] dark:bg-[#0B0F17] hover:border-[#991B1B] flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                <LogIn className="w-4 h-4 text-[#991B1B] dark:text-[#D97706]" />
+                <span>
+                  {isSigningInGoogle
+                    ? 'Đang kết nối Google...'
+                    : 'Đăng nhập bằng Tài khoản Google (Cloud Sync)'}
+                </span>
+              </button>
+
+              {loginErrorMsg && (
+                <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-xs text-amber-900 dark:text-amber-200 leading-relaxed">
+                  {loginErrorMsg}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
