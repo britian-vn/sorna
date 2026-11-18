@@ -81,7 +81,7 @@ export const VocabAndSrsModules: React.FC<VocabAndSrsProps> = ({
   const [hubSubTab, setHubSubTab] = useState<'lessons-quiz' | 'mega-lexicon'>('lessons-quiz');
 
   // Lesson 3-Step Scientific Workflow: 'theory' | 'words' | 'quiz' | 'all'
-  const [lessonStepTab, setLessonStepTab] = useState<'theory' | 'words' | 'quiz' | 'all'>('all');
+  const [lessonStepTab, setLessonStepTab] = useState<'theory' | 'words' | 'quiz' | 'all'>('theory');
 
   // 20-Question Quiz Ergonomic Controls
   const [quizDisplayMode, setQuizDisplayMode] = useState<'single' | 'list'>('single');
@@ -848,25 +848,25 @@ export const VocabAndSrsModules: React.FC<VocabAndSrsProps> = ({
 
               {/* Scientific 3-Step Lesson Navigation Bar (Reduces scrolling & keeps study organized) */}
               <div className="flex flex-wrap items-center justify-between gap-2 p-1.5 rounded-xl bg-[#FAF8F5] dark:bg-[#0B0F17] border border-[#E6E2DA] dark:border-[#263042]">
-                <div className="flex flex-wrap items-center gap-1">
+                <div className="flex flex-wrap items-center gap-1.5">
                   {(
                     [
-                      { id: 'all', label: 'Xem Toàn Bộ Bài' },
-                      { id: 'theory', label: 'Bước 1: Lý Thuyết & Công Thức' },
+                      { id: 'theory', label: '1. Lý Thuyết & Công Thức' },
                       {
                         id: 'words',
-                        label: `Bước 2: Từ Vựng Trọng Tâm (${currentLesson.words.length})`,
+                        label: `2. Từ Vựng Trọng Tâm (${currentLesson.words.length})`,
                       },
                       {
                         id: 'quiz',
-                        label: `Bước 3: Làm Đề 20 Câu (${answeredCount}/20)`,
+                        label: `3. Làm Đề 20 Câu (${answeredCount}/20)`,
                       },
+                      { id: 'all', label: 'Xem Gộp Cả Bài' },
                     ] as const
                   ).map((st) => (
                     <button
                       key={st.id}
                       onClick={() => setLessonStepTab(st.id)}
-                      className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+                      className={`px-3.5 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
                         lessonStepTab === st.id
                           ? 'bg-[#991B1B] text-white dark:bg-[#D97706] dark:text-[#0B0F17]'
                           : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'

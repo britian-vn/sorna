@@ -586,19 +586,29 @@ function ScholarBandWorkspace() {
     (c) => c.nextReviewAt <= new Date().toISOString()
   ).length;
 
-  const navGroups = [
+  const navGroups: {
+    groupTitle: string;
+    items: {
+      id: string;
+      label: string;
+      badge?: string;
+      badgeAlert?: boolean;
+      icon: React.ComponentType<{ className?: string }>;
+    }[];
+  }[] = [
     {
-      groupTitle: langMode === 'en' ? 'Overview & Roadmap' : 'I. Tổng Quan & Lộ Trình',
+      groupTitle:
+        langMode === 'en' ? '1. Overview & Roadmap' : '1. Tổng Quan & Lộ Trình',
       items: [
         {
           id: 'dashboard',
-          label: langMode === 'en' ? 'Study Dashboard' : 'Bảng Điều Khiển Học Tập',
+          label: langMode === 'en' ? 'Dashboard' : 'Tổng Quan Học Tập',
           badge: `Band ${profile.currentBandLevel}`,
           icon: LayoutDashboard,
         },
         {
           id: 'pathways',
-          label: langMode === 'en' ? '4-Tier Band Roadmap' : 'Lộ Trình 4 Chặng Band',
+          label: langMode === 'en' ? 'Band Roadmap' : 'Lộ Trình 4 Chặng',
           badge: `${profile.completedMilestones.length} mốc`,
           icon: Compass,
         },
@@ -606,17 +616,17 @@ function ScholarBandWorkspace() {
     },
     {
       groupTitle:
-        langMode === 'en' ? 'Core Vocabulary & Grammar' : 'II. Từ Vựng CEFR & Ngữ Pháp',
+        langMode === 'en' ? '2. Vocabulary & Grammar' : '2. Từ Vựng & Ngữ Pháp',
       items: [
         {
           id: 'vocab-grammar',
-          label: langMode === 'en' ? '16,750 Words & 20-Q Quiz' : 'Kho 16.750 Từ & Đề 20 Câu',
-          badge: 'A1–C1',
+          label: langMode === 'en' ? 'Vocabulary & 20-Q Grammar' : 'Từ Vựng & Ngữ Pháp (20 Câu)',
+          badge: '16.750 từ',
           icon: BookOpen,
         },
         {
           id: 'srs-deck',
-          label: langMode === 'en' ? 'SM-2 SRS Flashcards' : 'Ôn Thẻ Ghi Nhớ SRS',
+          label: langMode === 'en' ? 'SRS Flashcards' : 'Ôn Thẻ Từ Vựng SRS',
           badge: dueSrsCount > 0 ? `${dueSrsCount} cần ôn` : `${srsCards.length} thẻ`,
           badgeAlert: dueSrsCount > 0,
           icon: Layers,
@@ -625,30 +635,28 @@ function ScholarBandWorkspace() {
     },
     {
       groupTitle:
-        langMode === 'en' ? '4-Skills & Media Immersion' : 'III. Luyện Kỹ Năng & Video',
+        langMode === 'en' ? '3. Practice & Media Studio' : '3. Luyện Kỹ Năng & Video',
       items: [
         {
           id: 'shadowing',
           label:
-            langMode === 'en' ? '62+ YouTube Cloze & Shadow' : '62+ Video Anime/Phim Điền Từ',
+            langMode === 'en' ? 'Video Cloze & Shadowing' : 'Video YouTube & Điền Từ',
           badge: '62+ video',
           icon: Video,
         },
         {
           id: 'news-reader',
-          label: langMode === 'en' ? 'Click-to-Define News' : 'Đọc Báo Chạm Từ Tra Nghĩa',
-          badge: 'AI Band',
+          label: langMode === 'en' ? 'Bilingual News Reader' : 'Đọc Báo Song Ngữ',
           icon: Newspaper,
         },
         {
           id: 'skills-lab',
-          label: langMode === 'en' ? '4-Skills & AI Examiner' : 'Phòng Thi 4 Kỹ Năng & Chấm AI',
-          badge: '4 kỹ năng',
+          label: langMode === 'en' ? '4-Skills & AI Grader' : 'Luyện 4 Kỹ Năng & Chấm AI',
           icon: GraduationCap,
         },
         {
           id: 'reminders',
-          label: langMode === 'en' ? 'Schedule & Offline App' : 'Lịch Nhắc Học & Cài App',
+          label: langMode === 'en' ? 'Reminders & Offline' : 'Lịch Nhắc & Lưu Offline',
           badge: profile.reminderTime,
           icon: Bell,
         },
@@ -665,27 +673,27 @@ function ScholarBandWorkspace() {
     <div className="min-h-screen flex bg-[#FAF8F5] dark:bg-[#0B0F17] text-[#18181B] dark:text-[#F3F0E6]">
       <OfflineIndicator />
 
-      {/* Desktop Fixed Sidebar Navigation (276px) */}
-      <aside className="hidden lg:flex flex-col justify-between w-[276px] shrink-0 border-r border-[#E6E2DA] dark:border-[#263042] bg-white dark:bg-[#151C28] p-5 select-none">
-        <div className="space-y-5">
+      {/* Desktop Fixed Sidebar Navigation (280px) */}
+      <aside className="hidden lg:flex flex-col justify-between w-[280px] shrink-0 border-r border-[#E6E2DA] dark:border-[#263042] bg-white dark:bg-[#151C28] p-5 select-none">
+        <div className="space-y-6">
           {/* Brand Wordmark */}
           <div className="flex items-center justify-between border-b border-[#E6E2DA] dark:border-[#263042] pb-4">
             <button
               onClick={() => setActiveModule('dashboard')}
-              className="text-xl font-bold font-serif-editorial tracking-tight text-[#18181B] dark:text-[#F3F0E6] cursor-pointer"
+              className="text-xl font-bold tracking-tight text-[#18181B] dark:text-[#F3F0E6] cursor-pointer"
             >
               ScholarBand
             </button>
-            <span className="text-xs font-mono-tabular text-[#991B1B] dark:text-[#D97706] font-semibold">
-              Target {profile.targetBand.toFixed(1)}
+            <span className="px-2.5 py-1 rounded-md bg-[#FAF8F5] dark:bg-[#0B0F17] border border-[#E6E2DA] dark:border-[#263042] text-xs font-mono-tabular text-[#991B1B] dark:text-[#D97706] font-semibold">
+              Mục tiêu {profile.targetBand.toFixed(1)}
             </span>
           </div>
 
           {/* Grouped Scientific Navigation Links */}
-          <nav className="space-y-5" aria-label="Main Learning Navigation">
+          <nav className="space-y-6" aria-label="Main Learning Navigation">
             {navGroups.map((group) => (
-              <div key={group.groupTitle} className="space-y-1.5">
-                <p className="px-2.5 text-[11px] font-semibold text-zinc-400 dark:text-zinc-500 tracking-wide">
+              <div key={group.groupTitle} className="space-y-2">
+                <p className="px-3 text-xs font-semibold text-zinc-400 dark:text-zinc-500">
                   {group.groupTitle}
                 </p>
                 <div className="space-y-1">
@@ -696,9 +704,9 @@ function ScholarBandWorkspace() {
                       <button
                         key={item.id}
                         onClick={() => setActiveModule(item.id)}
-                        className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap cursor-pointer ${
+                        className={`w-full flex items-center justify-between gap-2.5 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-colors cursor-pointer ${
                           active
-                            ? 'bg-[#991B1B] text-white dark:bg-[#D97706] dark:text-[#0B0F17] font-semibold'
+                            ? 'bg-[#991B1B] text-white dark:bg-[#D97706] dark:text-[#0B0F17] font-semibold shadow-xs'
                             : 'text-zinc-700 dark:text-zinc-300 hover:bg-[#FAF8F5] dark:hover:bg-[#0B0F17]'
                         }`}
                       >
@@ -708,11 +716,11 @@ function ScholarBandWorkspace() {
                         </div>
                         {item.badge && (
                           <span
-                            className={`text-[10px] font-mono-tabular shrink-0 ${
+                            className={`text-[11px] font-mono-tabular shrink-0 px-1.5 py-0.5 rounded ${
                               active
-                                ? 'text-white/90 dark:text-[#0B0F17]/90'
+                                ? 'bg-black/15 text-white dark:text-[#0B0F17]'
                                 : item.badgeAlert
-                                ? 'text-[#991B1B] dark:text-[#D97706] font-bold'
+                                ? 'bg-red-50 dark:bg-amber-950/50 text-[#991B1B] dark:text-[#D97706] font-semibold'
                                 : 'text-zinc-400 dark:text-zinc-500'
                             }`}
                           >
@@ -732,9 +740,9 @@ function ScholarBandWorkspace() {
         <div className="space-y-3 pt-4 border-t border-[#E6E2DA] dark:border-[#263042]">
           <button
             onClick={() => setShowPlacementModal(true)}
-            className="w-full py-2.5 px-3 text-xs font-semibold rounded-lg border border-[#E6E2DA] dark:border-[#263042] bg-[#FAF8F5] dark:bg-[#0B0F17] hover:border-[#991B1B] flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full py-2.5 px-3 text-[13px] font-semibold rounded-xl border border-[#E6E2DA] dark:border-[#263042] bg-[#FAF8F5] dark:bg-[#0B0F17] hover:border-[#991B1B] flex items-center justify-center gap-2 cursor-pointer"
           >
-            <Sparkles className="w-3.5 h-3.5 text-[#991B1B] dark:text-[#D97706]" />
+            <Sparkles className="w-4 h-4 text-[#991B1B] dark:text-[#D97706]" />
             <span>
               {profile.diagnosticSavedState && !profile.diagnosticCompleted
                 ? langMode === 'en'
@@ -742,14 +750,14 @@ function ScholarBandWorkspace() {
                   : 'Tiếp Tục Thi Đầu Vào'
                 : langMode === 'en'
                 ? '4-Skill Placement Test'
-                : 'Thi Xếp Lớp 4 Kỹ Năng'}
+                : 'Kiểm Tra Xếp Lớp 4 Kỹ Năng'}
             </span>
           </button>
 
-          <div className="text-[11px] text-zinc-500 flex items-center justify-between font-mono-tabular">
-            <span>Band {profile.currentBandLevel}</span>
+          <div className="text-xs text-zinc-500 flex items-center justify-between font-mono-tabular px-1">
+            <span>Trình độ: Band {profile.currentBandLevel}</span>
             <span>·</span>
-            <span>{currentUser ? 'Cloud Synced' : 'Local Saved'}</span>
+            <span>{currentUser ? 'Đã đồng bộ Cloud' : 'Lưu trên máy'}</span>
           </div>
         </div>
       </aside>
@@ -764,7 +772,7 @@ function ScholarBandWorkspace() {
           <aside className="relative z-10 w-72 max-w-[85vw] bg-white dark:bg-[#151C28] border-r border-[#E6E2DA] dark:border-[#263042] p-5 flex flex-col justify-between overflow-y-auto">
             <div className="space-y-5">
               <div className="flex items-center justify-between border-b border-[#E6E2DA] dark:border-[#263042] pb-3">
-                <span className="text-lg font-bold font-serif-editorial">
+                <span className="text-lg font-bold">
                   ScholarBand
                 </span>
                 <button
@@ -774,10 +782,10 @@ function ScholarBandWorkspace() {
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              <nav className="space-y-4">
+              <nav className="space-y-5">
                 {navGroups.map((group) => (
-                  <div key={group.groupTitle} className="space-y-1">
-                    <p className="px-2 text-[11px] font-semibold text-zinc-400">
+                  <div key={group.groupTitle} className="space-y-1.5">
+                    <p className="px-2 text-xs font-semibold text-zinc-400">
                       {group.groupTitle}
                     </p>
                     {group.items.map((item) => {
@@ -790,7 +798,7 @@ function ScholarBandWorkspace() {
                             setActiveModule(item.id);
                             setMobileSidebarOpen(false);
                           }}
-                          className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg text-xs font-medium ${
+                          className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-[13px] font-medium ${
                             active
                               ? 'bg-[#991B1B] text-white dark:bg-[#D97706] dark:text-[#0B0F17]'
                               : 'text-zinc-600 dark:text-zinc-300'
@@ -800,9 +808,11 @@ function ScholarBandWorkspace() {
                             <Icon className="w-4 h-4 shrink-0" />
                             <span className="truncate">{item.label}</span>
                           </div>
-                          <span className="text-[10px] font-mono-tabular opacity-80">
-                            {item.badge}
-                          </span>
+                          {item.badge && (
+                            <span className="text-[11px] font-mono-tabular opacity-80">
+                              {item.badge}
+                            </span>
+                          )}
                         </button>
                       );
                     })}
@@ -819,70 +829,33 @@ function ScholarBandWorkspace() {
 
       {/* Main Content Column */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Top Workspace Header */}
-        <header className="sticky top-0 z-30 bg-[#FAF8F5]/95 dark:bg-[#0B0F17]/95 backdrop-blur border-b border-[#E6E2DA] dark:border-[#263042] px-4 md:px-8 py-3 flex flex-wrap items-center justify-between gap-3">
-          {/* Left: Mobile Menu Trigger + Breadcrumb + Quick Daily Study Stepper */}
+        {/* Clean Uncluttered Top Workspace Header */}
+        <header className="sticky top-0 z-30 bg-[#FAF8F5]/95 dark:bg-[#0B0F17]/95 backdrop-blur border-b border-[#E6E2DA] dark:border-[#263042] px-4 md:px-8 py-3.5 flex flex-wrap items-center justify-between gap-3">
+          {/* Left: Mobile Menu Trigger + Section Breadcrumb */}
           <div className="flex items-center gap-3 min-w-0">
             <button
               onClick={() => setMobileSidebarOpen(true)}
-              className="lg:hidden p-1.5 rounded-lg border border-[#E6E2DA] dark:border-[#263042] bg-white dark:bg-[#151C28]"
+              className="lg:hidden p-2 rounded-lg border border-[#E6E2DA] dark:border-[#263042] bg-white dark:bg-[#151C28]"
               aria-label="Open navigation menu"
             >
               <Menu className="w-4 h-4" />
             </button>
-            <div className="flex items-center gap-2 text-xs text-zinc-500 truncate">
+            <div className="flex items-center gap-2.5 text-sm truncate">
               <button
                 onClick={() => setActiveModule('dashboard')}
-                className="font-semibold text-[#18181B] dark:text-[#F3F0E6] hover:underline cursor-pointer"
+                className="font-medium text-zinc-500 hover:text-[#18181B] dark:hover:text-[#F3F0E6] cursor-pointer"
               >
                 ScholarBand
               </button>
-              <span>/</span>
-              <span className="truncate text-[#991B1B] dark:text-[#D97706] font-semibold">
+              <span className="text-zinc-300 dark:text-zinc-700">/</span>
+              <span className="truncate text-[#18181B] dark:text-[#F3F0E6] font-bold">
                 {currentModuleTitle}
               </span>
-            </div>
-
-            {/* Scientific 3-Step Daily Study Shortcut Bar (Desktop) */}
-            <div className="hidden xl:flex items-center gap-1.5 pl-4 ml-2 border-l border-[#E6E2DA] dark:border-[#263042] text-xs">
-              <span className="text-zinc-400 font-medium mr-1">Quy trình hôm nay:</span>
-              <button
-                onClick={() => setActiveModule('srs-deck')}
-                className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer whitespace-nowrap ${
-                  activeModule === 'srs-deck'
-                    ? 'bg-[#18181B] text-white dark:bg-[#F3F0E6] dark:text-[#0B0F17] font-semibold'
-                    : 'bg-white dark:bg-[#151C28] border border-[#E6E2DA] dark:border-[#263042] hover:border-[#991B1B]'
-                }`}
-              >
-                1. Ôn SRS ({dueSrsCount})
-              </button>
-              <span className="text-zinc-300 dark:text-zinc-700">→</span>
-              <button
-                onClick={() => setActiveModule('vocab-grammar')}
-                className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer whitespace-nowrap ${
-                  activeModule === 'vocab-grammar'
-                    ? 'bg-[#18181B] text-white dark:bg-[#F3F0E6] dark:text-[#0B0F17] font-semibold'
-                    : 'bg-white dark:bg-[#151C28] border border-[#E6E2DA] dark:border-[#263042] hover:border-[#991B1B]'
-                }`}
-              >
-                2. Từ Vựng &amp; 20 Câu Ngữ Pháp
-              </button>
-              <span className="text-zinc-300 dark:text-zinc-700">→</span>
-              <button
-                onClick={() => setActiveModule('shadowing')}
-                className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer whitespace-nowrap ${
-                  activeModule === 'shadowing'
-                    ? 'bg-[#18181B] text-white dark:bg-[#F3F0E6] dark:text-[#0B0F17] font-semibold'
-                    : 'bg-white dark:bg-[#151C28] border border-[#E6E2DA] dark:border-[#263042] hover:border-[#991B1B]'
-                }`}
-              >
-                3. Video Điền Từ (62+)
-              </button>
             </div>
           </div>
 
           {/* Right: Bilingual Mode Switcher, Study Streak, Notification Bell, Theme Toggle, Google Auth */}
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2.5 shrink-0">
             {/* Quick 3-Mode Language Switcher */}
             <div
               className="flex items-center gap-0.5 p-1 rounded-lg border border-[#E6E2DA] dark:border-[#263042] bg-white dark:bg-[#151C28]"
